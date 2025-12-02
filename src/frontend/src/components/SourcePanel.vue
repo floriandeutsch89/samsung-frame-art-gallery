@@ -24,6 +24,7 @@
     />
 
     <CollectionsPanel
+      ref="collectionsPanel"
       v-show="activeTab === 'collections'"
       @uploaded="$emit('uploaded')"
       @preview="(img, isLocal) => $emit('preview', img, isLocal)"
@@ -38,6 +39,8 @@ import MetPanel from '../views/MetPanel.vue'
 import CollectionsPanel from '../views/CollectionsPanel.vue'
 
 defineEmits(['uploaded', 'preview'])
+
+const collectionsPanel = ref(null)
 
 const tabs = [
   { id: 'local', label: 'Local Images' },
@@ -70,12 +73,17 @@ onMounted(async () => {
   }
 })
 
-// Update URL when tab changes
+// Update URL when tab changes and refresh data
 watch(activeTab, (newTab) => {
   const params = new URLSearchParams(window.location.search)
   params.set('tab', newTab)
   const newUrl = `${window.location.pathname}?${params.toString()}`
   window.history.replaceState({}, '', newUrl)
+
+  // Refresh collections when switching to collections tab
+  if (newTab === 'collections' && collectionsPanel.value) {
+    collectionsPanel.value.loadCollections()
+  }
 })
 </script>
 

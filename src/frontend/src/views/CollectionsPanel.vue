@@ -347,6 +347,8 @@ watch(showRenameModal, (show) => {
 })
 
 onMounted(loadCollections)
+
+defineExpose({ loadCollections })
 </script>
 
 <style scoped>
