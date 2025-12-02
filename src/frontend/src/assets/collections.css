@@ -14,3 +14,51 @@
   --collection-text-secondary: #888888;
   --collection-text-muted: #666666;
 }
+
+/* Micro-interactions */
+@keyframes pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes fade-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.collection-card-enter-active {
+  animation: pulse-scale 0.3s ease;
+}
+
+.collection-item-leave-active {
+  animation: fade-slide-out 0.3s ease forwards;
+}
+
+.grid-crossfade-enter-active,
+.grid-crossfade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.grid-crossfade-enter-from,
+.grid-crossfade-leave-to {
+  opacity: 0;
+}
