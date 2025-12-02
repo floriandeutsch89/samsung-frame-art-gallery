@@ -1,0 +1,16 @@
+:root {
+  /* Collections gold accent */
+  --collection-accent: #D4A574;
+  --collection-accent-hover: #E5B685;
+  --collection-accent-muted: rgba(212, 165, 116, 0.3);
+
+  /* Collection card backgrounds */
+  --collection-card-bg: #1e1e32;
+  --collection-card-bg-selected: #262640;
+  --collection-card-bg-hover: #232338;
+
+  /* Typography */
+  --collection-text-primary: #ffffff;
+  --collection-text-secondary: #888888;
+  --collection-text-muted: #666666;
+}
