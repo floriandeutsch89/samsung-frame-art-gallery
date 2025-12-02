@@ -1,80 +1,185 @@
 <template>
-  <div class="collections-panel">
-    <div class="panel-header">
-      <div class="collection-select">
-        <select v-model="selectedCollectionId" @change="loadCollectionItems">
-          <option :value="null" disabled>Select a collection...</option>
-          <option
-            v-for="c in collections"
-            :key="c.id"
-            :value="c.id"
-          >
-            {{ c.name }} ({{ c.item_count }})
-          </option>
-        </select>
-        <button class="new-btn" @click="showNewModal = true" title="New collection">+</button>
-      </div>
-
-      <div v-if="selectedCollection" class="collection-actions">
-        <button class="icon-btn" @click="showRenameModal = true" title="Rename">
-          <span>Rename</span>
-        </button>
-        <button class="icon-btn danger" @click="confirmDelete" title="Delete">
-          <span>Delete</span>
-        </button>
-      </div>
-    </div>
-
-    <div v-if="!selectedCollectionId" class="empty-state">
-      <p>Select a collection to view its contents</p>
-      <button @click="showNewModal = true">Create New Collection</button>
-    </div>
-
-    <template v-else>
-      <div v-if="unavailableCount > 0" class="unavailable-notice">
-        {{ unavailableCount }} image(s) unavailable
-      </div>
-
-      <ImageGrid
-        :images="items"
-        :selected-ids="selectedIds"
-        :loading="loading"
-        :is-local="false"
-        @toggle="toggleSelection"
-        @select-all="selectAll"
-        @preview="(img) => $emit('preview', img, img.type === 'local')"
+  <div class="collections-panel" :class="{ 'has-sidebar': !isMobile }">
+    <!-- Desktop: Sidebar Layout -->
+    <template v-if="!isMobile">
+      <CollectionsSidebar
+        :collections="collections"
+        :selected-id="selectedCollectionId"
+        @select="selectCollection"
+        @create="showNewModal = true"
       />
 
-      <ActionBar>
-        <template #left>
-          <CropSettings
-            :has-selection="selectedIds.size > 0"
-            :allow-reframe="false"
-            @change="setSettings"
+      <div class="main-content">
+        <!-- No collections state -->
+        <EmptyCollections
+          v-if="collections.length === 0"
+          @create="showNewModal = true"
+        />
+
+        <!-- Collection selected -->
+        <template v-else-if="selectedCollection">
+          <div class="content-header">
+            <div class="header-info">
+              <h2>{{ selectedCollection.name }}</h2>
+              <span class="header-meta">
+                {{ selectedCollection.item_count }} {{ selectedCollection.item_count === 1 ? 'item' : 'items' }}
+                <span v-if="selectedCollection.created_at"> · Created {{ formatDate(selectedCollection.created_at) }}</span>
+              </span>
+            </div>
+            <div class="header-actions">
+              <button class="icon-btn" @click="showRenameModal = true" title="Rename">
+                ✏️
+              </button>
+              <button class="icon-btn danger" @click="confirmDelete" title="Delete">
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <div v-if="unavailableCount > 0" class="unavailable-notice">
+            {{ unavailableCount }} image(s) unavailable
+          </div>
+
+          <!-- Empty collection -->
+          <EmptyCollection
+            v-if="items.length === 0 && !loading"
+            @go-to-local="goToLocal"
           />
+
+          <!-- Image grid -->
+          <ImageGrid
+            v-else
+            :images="items"
+            :selected-ids="selectedIds"
+            :loading="loading"
+            :is-local="false"
+            @toggle="toggleSelection"
+            @select-all="selectAll"
+            @preview="(img) => $emit('preview', img, img.type === 'local')"
+          />
+
+          <!-- Action Bar -->
+          <ActionBar v-if="items.length > 0" class="collections-action-bar">
+            <template #left>
+              <SelectionPreview :images="selectedImages" />
+            </template>
+            <template #default>
+              <div class="action-bar-right">
+                <button
+                  class="remove-btn"
+                  :disabled="selectedIds.size === 0"
+                  @click="removeSelected"
+                >
+                  Remove from Collection
+                </button>
+                <div class="action-bar-controls">
+                  <CropSettings
+                    :has-selection="selectedIds.size > 0"
+                    :allow-reframe="false"
+                    @change="setSettings"
+                  />
+                  <div class="upload-buttons">
+                    <button
+                      class="secondary"
+                      :disabled="selectedIds.size === 0 || uploading"
+                      @click="upload(false)"
+                    >
+                      Upload to TV
+                    </button>
+                    <button
+                      class="primary"
+                      :disabled="selectedIds.size === 0 || uploading"
+                      @click="upload(true)"
+                    >
+                      Upload & Display
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </ActionBar>
         </template>
-        <button
-          class="secondary danger"
-          :disabled="selectedIds.size === 0"
-          @click="removeSelected"
-        >
-          Remove ({{ selectedIds.size }})
-        </button>
-        <button
-          class="secondary"
-          :disabled="selectedIds.size === 0 || uploading"
-          @click="upload(false)"
-        >
-          Upload ({{ selectedIds.size }})
-        </button>
-        <button
-          class="primary"
-          :disabled="selectedIds.size === 0 || uploading"
-          @click="upload(true)"
-        >
-          Upload & Display
-        </button>
-      </ActionBar>
+      </div>
+    </template>
+
+    <!-- Mobile: Original dropdown layout (to be replaced in Task 8) -->
+    <template v-else>
+      <div class="panel-header">
+        <div class="collection-select">
+          <select v-model="selectedCollectionId" @change="loadCollectionItems">
+            <option :value="null" disabled>Select a collection...</option>
+            <option
+              v-for="c in collections"
+              :key="c.id"
+              :value="c.id"
+            >
+              {{ c.name }} ({{ c.item_count }})
+            </option>
+          </select>
+          <button class="new-btn" @click="showNewModal = true" title="New collection">+</button>
+        </div>
+
+        <div v-if="selectedCollection" class="collection-actions">
+          <button class="icon-btn" @click="showRenameModal = true" title="Rename">
+            <span>Rename</span>
+          </button>
+          <button class="icon-btn danger" @click="confirmDelete" title="Delete">
+            <span>Delete</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="!selectedCollectionId" class="empty-state">
+        <p>Select a collection to view its contents</p>
+        <button @click="showNewModal = true">Create New Collection</button>
+      </div>
+
+      <template v-else>
+        <div v-if="unavailableCount > 0" class="unavailable-notice">
+          {{ unavailableCount }} image(s) unavailable
+        </div>
+
+        <ImageGrid
+          :images="items"
+          :selected-ids="selectedIds"
+          :loading="loading"
+          :is-local="false"
+          @toggle="toggleSelection"
+          @select-all="selectAll"
+          @preview="(img) => $emit('preview', img, img.type === 'local')"
+        />
+
+        <ActionBar>
+          <template #left>
+            <CropSettings
+              :has-selection="selectedIds.size > 0"
+              :allow-reframe="false"
+              @change="setSettings"
+            />
+          </template>
+          <button
+            class="secondary danger"
+            :disabled="selectedIds.size === 0"
+            @click="removeSelected"
+          >
+            Remove ({{ selectedIds.size }})
+          </button>
+          <button
+            class="secondary"
+            :disabled="selectedIds.size === 0 || uploading"
+            @click="upload(false)"
+          >
+            Upload ({{ selectedIds.size }})
+          </button>
+          <button
+            class="primary"
+            :disabled="selectedIds.size === 0 || uploading"
+            @click="upload(true)"
+          >
+            Upload & Display
+          </button>
+        </ActionBar>
+      </template>
     </template>
 
     <!-- New Collection Modal -->
@@ -114,12 +219,30 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import ImageGrid from '../components/ImageGrid.vue'
 import ActionBar from '../components/ActionBar.vue'
 import CropSettings from '../components/CropSettings.vue'
+import CollectionsSidebar from '../components/CollectionsSidebar.vue'
+import SelectionPreview from '../components/SelectionPreview.vue'
+import EmptyCollections from '../components/EmptyCollections.vue'
+import EmptyCollection from '../components/EmptyCollection.vue'
 
-const emit = defineEmits(['uploaded', 'preview'])
+const emit = defineEmits(['uploaded', 'preview', 'switch-tab'])
+
+// Responsive
+const isMobile = ref(window.innerWidth <= 768)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const collections = ref([])
 const selectedCollectionId = ref(null)
@@ -140,6 +263,32 @@ const showNewModal = ref(false)
 const newCollectionName = ref('')
 const showRenameModal = ref(false)
 const renameValue = ref('')
+
+// Computed for selection preview
+const selectedImages = computed(() =>
+  items.value.filter(i => selectedIds.value.has(i._id))
+)
+
+// Format date helper
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Navigate to local tab
+const goToLocal = () => {
+  // Update URL and trigger parent to switch tabs
+  const params = new URLSearchParams(window.location.search)
+  params.set('tab', 'local')
+  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`)
+  window.location.reload()
+}
+
+const selectCollection = (id) => {
+  selectedCollectionId.value = id
+  loadCollectionItems()
+}
 
 const loadCollections = async () => {
   try {
@@ -175,7 +324,6 @@ const loadCollectionItems = async () => {
       if (item.type === 'local') {
         return {
           ...item,
-          // Use path as unique ID for local items
           _id: `local:${item.path}`,
           thumbnail: `/api/images/${encodeURIComponent(item.path)}/thumbnail`
         }
@@ -291,7 +439,7 @@ const removeSelected = async () => {
       body: JSON.stringify({ items: itemsToRemove })
     })
     await loadCollectionItems()
-    await loadCollections() // Update item counts
+    await loadCollections()
   } catch (e) {
     console.error('Failed to remove items:', e)
   }
@@ -302,13 +450,11 @@ const upload = async (display) => {
 
   uploading.value = true
 
-  // Separate local and met items
   const selected = items.value.filter(i => selectedIds.value.has(i._id))
   const localPaths = selected.filter(i => i.type === 'local').map(i => i.path)
   const metIds = selected.filter(i => i.type === 'met').map(i => i.object_id)
 
   try {
-    // Upload local images
     if (localPaths.length > 0) {
       await fetch('/api/tv/upload', {
         method: 'POST',
@@ -322,7 +468,6 @@ const upload = async (display) => {
       })
     }
 
-    // Upload Met images
     if (metIds.length > 0) {
       await fetch('/api/met/upload', {
         method: 'POST',
@@ -345,7 +490,6 @@ const upload = async (display) => {
   }
 }
 
-// Open rename modal with current name
 watch(showRenameModal, (show) => {
   if (show && selectedCollection.value) {
     renameValue.value = selectedCollection.value.name
@@ -362,6 +506,117 @@ defineExpose({ loadCollections })
   display: contents;
 }
 
+.collections-panel.has-sidebar {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem 1.5rem;
+  background: #12121f;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.header-info h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.header-meta {
+  font-size: 0.85rem;
+  color: var(--collection-text-secondary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.content-header:hover .header-actions {
+  opacity: 1;
+}
+
+.header-actions .icon-btn {
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.header-actions .icon-btn:hover {
+  background: #2a2a4e;
+}
+
+.header-actions .icon-btn.danger:hover {
+  background: #4a2a2e;
+}
+
+/* Action bar styling for collections */
+.collections-action-bar {
+  flex-wrap: nowrap;
+  padding: 1rem 1.5rem;
+}
+
+.action-bar-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.remove-btn {
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid #4a3a3e;
+  border-radius: 4px;
+  color: #ff9999;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.remove-btn:hover:not(:disabled) {
+  background: #4a2a2e;
+  border-color: #6a4a4e;
+}
+
+.remove-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.upload-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Mobile/Original styles */
 .panel-header {
   display: flex;
   justify-content: space-between;
