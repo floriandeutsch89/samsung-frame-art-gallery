@@ -146,6 +146,12 @@ const loadCollections = async () => {
     const res = await fetch('/api/collections')
     const data = await res.json()
     collections.value = data.collections || []
+
+    // Auto-select first collection if none selected and collections exist
+    if (!selectedCollectionId.value && collections.value.length > 0) {
+      selectedCollectionId.value = collections.value[0].id
+      await loadCollectionItems()
+    }
   } catch (e) {
     console.error('Failed to load collections:', e)
   }
