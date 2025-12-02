@@ -13,6 +13,45 @@
       </button>
     </div>
 
+    <!-- Slideshow settings (only visible when TV connected) -->
+    <div v-if="connected" class="slideshow-settings">
+      <h4>Slideshow</h4>
+      <div class="slideshow-controls">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            v-model="slideshowEnabled"
+            @change="updateSlideshow"
+            :disabled="slideshowLoading"
+          />
+          <span>Enable slideshow</span>
+        </label>
+
+        <div v-if="slideshowEnabled" class="slideshow-options">
+          <label>
+            <span>Change every:</span>
+            <select v-model.number="slideshowDuration" @change="updateSlideshow" :disabled="slideshowLoading">
+              <option :value="5">5 minutes</option>
+              <option :value="10">10 minutes</option>
+              <option :value="15">15 minutes</option>
+              <option :value="30">30 minutes</option>
+              <option :value="60">1 hour</option>
+            </select>
+          </label>
+
+          <label class="toggle-label">
+            <input
+              type="checkbox"
+              v-model="slideshowShuffle"
+              @change="updateSlideshow"
+              :disabled="slideshowLoading"
+            />
+            <span>Shuffle order</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- Row 3: Image grid -->
     <ImageGrid
       :images="artwork"
@@ -49,17 +88,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import ImageGrid from '../components/ImageGrid.vue'
 import ActionBar from '../components/ActionBar.vue'
 
-defineEmits(['preview'])
+const emit = defineEmits(['preview'])
 
 const artwork = ref([])
 const currentId = ref(null)
 const selectedIds = ref(new Set())
 const loading = ref(false)
 const deleting = ref(false)
+
+// Slideshow state
+const connected = ref(false)
+const slideshowEnabled = ref(false)
+const slideshowDuration = ref(15)
+const slideshowShuffle = ref(true)
+const slideshowLoading = ref(false)
 
 const loadArtwork = async () => {
   loading.value = true
@@ -74,10 +120,55 @@ const loadArtwork = async () => {
     artwork.value = artData.artwork || []
     currentId.value = currentData.content_id || null
     selectedIds.value = new Set()
+
+    // Check if TV is connected
+    connected.value = true
+
+    // Load slideshow status when we successfully connect
+    await loadSlideshowStatus()
   } catch (e) {
     console.error('Failed to load TV artwork:', e)
+    connected.value = false
   } finally {
     loading.value = false
+  }
+}
+
+const loadSlideshowStatus = async () => {
+  try {
+    const res = await fetch('/api/tv/slideshow')
+    const data = await res.json()
+    if (!data.error) {
+      // Parse the response - format varies by TV
+      slideshowEnabled.value = data.value !== 'off' && data.value !== '0'
+      if (data.duration) {
+        slideshowDuration.value = parseInt(data.duration) || 15
+      }
+      if (data.type !== undefined) {
+        slideshowShuffle.value = data.type === true || data.type === 'shuffle'
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load slideshow status:', e)
+  }
+}
+
+const updateSlideshow = async () => {
+  slideshowLoading.value = true
+  try {
+    await fetch('/api/tv/slideshow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: slideshowEnabled.value,
+        duration: slideshowDuration.value,
+        shuffle: slideshowShuffle.value
+      })
+    })
+  } catch (e) {
+    console.error('Failed to update slideshow:', e)
+  } finally {
+    slideshowLoading.value = false
   }
 }
 
@@ -186,5 +277,71 @@ defineExpose({ loadArtwork })
 .selected-count {
   color: #888;
   font-size: 0.9rem;
+}
+
+/* Slideshow settings */
+.slideshow-settings {
+  padding: 1rem;
+  background: #12121f;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.slideshow-settings h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.slideshow-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.slideshow-options {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-left: 1.5rem;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.slideshow-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slideshow-options select {
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #3a3a5e;
+  background: #2a2a4e;
+  color: white;
+  cursor: pointer;
+}
+
+.slideshow-options select:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+
+.slideshow-options select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
