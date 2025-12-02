@@ -102,36 +102,20 @@
       </div>
     </template>
 
-    <!-- Mobile: Original dropdown layout (to be replaced in Task 8) -->
+    <!-- Mobile: Bottom Sheet Layout -->
     <template v-else>
-      <div class="panel-header">
-        <div class="collection-select">
-          <select v-model="selectedCollectionId" @change="loadCollectionItems">
-            <option :value="null" disabled>Select a collection...</option>
-            <option
-              v-for="c in collections"
-              :key="c.id"
-              :value="c.id"
-            >
-              {{ c.name }} ({{ c.item_count }})
-            </option>
-          </select>
-          <button class="new-btn" @click="showNewModal = true" title="New collection">+</button>
-        </div>
-
-        <div v-if="selectedCollection" class="collection-actions">
-          <button class="icon-btn" @click="showRenameModal = true" title="Rename">
-            <span>Rename</span>
-          </button>
-          <button class="icon-btn danger" @click="confirmDelete" title="Delete">
-            <span>Delete</span>
-          </button>
-        </div>
-      </div>
+      <CollectionBottomSheet
+        :collections="collections"
+        :selected-id="selectedCollectionId"
+        :selected-collection="selectedCollection"
+        @select="selectCollection"
+        @create="showNewModal = true"
+        @rename="(c) => { selectedCollectionId = c.id; showRenameModal = true }"
+        @delete="(c) => { selectedCollectionId = c.id; confirmDelete() }"
+      />
 
       <div v-if="!selectedCollectionId" class="empty-state">
-        <p>Select a collection to view its contents</p>
-        <button @click="showNewModal = true">Create New Collection</button>
+        <EmptyCollections @create="showNewModal = true" />
       </div>
 
       <template v-else>
@@ -139,7 +123,13 @@
           {{ unavailableCount }} image(s) unavailable
         </div>
 
+        <EmptyCollection
+          v-if="items.length === 0 && !loading"
+          @go-to-local="goToLocal"
+        />
+
         <ImageGrid
+          v-else
           :images="items"
           :selected-ids="selectedIds"
           :loading="loading"
@@ -149,28 +139,10 @@
           @preview="(img) => $emit('preview', img, img.type === 'local')"
         />
 
-        <ActionBar>
-          <template #left>
-            <CropSettings
-              :has-selection="selectedIds.size > 0"
-              :allow-reframe="false"
-              @change="setSettings"
-            />
-          </template>
-          <button
-            class="secondary danger"
-            :disabled="selectedIds.size === 0"
-            @click="removeSelected"
-          >
-            Remove ({{ selectedIds.size }})
-          </button>
-          <button
-            class="secondary"
-            :disabled="selectedIds.size === 0 || uploading"
-            @click="upload(false)"
-          >
-            Upload ({{ selectedIds.size }})
-          </button>
+        <!-- Mobile simplified footer -->
+        <div v-if="items.length > 0" class="mobile-footer">
+          <span class="selected-count">{{ selectedIds.size }} selected</span>
+          <button class="settings-btn" @click="showMobileSettings = true">⚙️</button>
           <button
             class="primary"
             :disabled="selectedIds.size === 0 || uploading"
@@ -178,8 +150,40 @@
           >
             Upload & Display
           </button>
-        </ActionBar>
+        </div>
       </template>
+
+      <!-- Mobile settings sheet -->
+      <Teleport to="body">
+        <div v-if="showMobileSettings" class="settings-overlay" @click.self="showMobileSettings = false">
+          <div class="settings-sheet">
+            <div class="settings-handle" @click="showMobileSettings = false">
+              <div class="handle-bar"></div>
+            </div>
+            <CropSettings
+              :has-selection="selectedIds.size > 0"
+              :allow-reframe="false"
+              @change="setSettings"
+            />
+            <div class="settings-actions">
+              <button
+                class="danger"
+                :disabled="selectedIds.size === 0"
+                @click="removeSelected(); showMobileSettings = false"
+              >
+                Remove from Collection
+              </button>
+              <button
+                class="secondary"
+                :disabled="selectedIds.size === 0 || uploading"
+                @click="upload(false); showMobileSettings = false"
+              >
+                Upload to TV
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </template>
 
     <!-- New Collection Modal -->
@@ -227,6 +231,7 @@ import CollectionsSidebar from '../components/CollectionsSidebar.vue'
 import SelectionPreview from '../components/SelectionPreview.vue'
 import EmptyCollections from '../components/EmptyCollections.vue'
 import EmptyCollection from '../components/EmptyCollection.vue'
+import CollectionBottomSheet from '../components/CollectionBottomSheet.vue'
 
 const emit = defineEmits(['uploaded', 'preview', 'switch-tab'])
 
@@ -263,6 +268,7 @@ const showNewModal = ref(false)
 const newCollectionName = ref('')
 const showRenameModal = ref(false)
 const renameValue = ref('')
+const showMobileSettings = ref(false)
 
 // Computed for selection preview
 const selectedImages = computed(() =>
@@ -773,5 +779,102 @@ defineExpose({ loadCollections })
 .modal-actions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Mobile footer */
+.mobile-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #1a1a2e;
+  border-top: 1px solid #2a2a4e;
+}
+
+.selected-count {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--collection-text-secondary);
+}
+
+.settings-btn {
+  padding: 0.5rem;
+  background: #2a2a4e;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.mobile-footer .primary {
+  padding: 0.6rem 1rem;
+  background: var(--collection-accent);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobile-footer .primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mobile settings sheet */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
+.settings-sheet {
+  width: 100%;
+  background: #1a1a2e;
+  border-radius: 16px 16px 0 0;
+  padding: 0 1rem 1.5rem;
+}
+
+.settings-handle {
+  padding: 0.75rem 0;
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.settings-handle .handle-bar {
+  width: 40px;
+  height: 4px;
+  background: #3a3a5e;
+  border-radius: 2px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.settings-actions button {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-actions .danger {
+  background: #4a2a2e;
+  color: #ff9999;
+}
+
+.settings-actions .secondary {
+  background: #3a3a5e;
+  color: white;
 }
 </style>
