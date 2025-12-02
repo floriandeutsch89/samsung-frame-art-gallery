@@ -74,6 +74,13 @@
       </template>
       <button
         class="secondary"
+        :disabled="selectedIds.size === 0"
+        @click="showCollectionPicker = true"
+      >
+        + Collection
+      </button>
+      <button
+        class="secondary"
         :disabled="selectedIds.size === 0 || uploading"
         @click="upload(false)"
       >
@@ -104,6 +111,13 @@
       @confirm="confirmUpload"
       @cancel="showResolutionWarning = false"
     />
+
+    <CollectionPicker
+      v-if="showCollectionPicker"
+      :items="selectedItemsForCollection"
+      @close="showCollectionPicker = false"
+      @added="onAddedToCollection"
+    />
   </div>
 </template>
 
@@ -114,6 +128,7 @@ import ActionBar from '../components/ActionBar.vue'
 import CropSettings from '../components/CropSettings.vue'
 import PreviewModal from '../components/PreviewModal.vue'
 import ResolutionWarning from '../components/ResolutionWarning.vue'
+import CollectionPicker from '../components/CollectionPicker.vue'
 
 const emit = defineEmits(['uploaded', 'preview'])
 
@@ -152,6 +167,17 @@ const totalCount = ref(0)
 const searchQuery = ref(initialParams.q)
 const activeSearch = ref(initialParams.q)
 let searchDebounceTimer = null
+
+// Collection picker state
+const showCollectionPicker = ref(false)
+
+// Computed property for collection items (Met items use object_id)
+const selectedItemsForCollection = computed(() => {
+  return Array.from(selectedIds.value).map(object_id => ({
+    type: 'met',
+    object_id
+  }))
+})
 
 // Update URL with current filter state
 const updateUrl = () => {
@@ -464,6 +490,10 @@ const doUpload = async (display) => {
   } finally {
     uploading.value = false
   }
+}
+
+const onAddedToCollection = (collection) => {
+  console.log(`Added ${selectedIds.value.size} items to collection: ${collection.name}`)
 }
 
 onMounted(() => {
