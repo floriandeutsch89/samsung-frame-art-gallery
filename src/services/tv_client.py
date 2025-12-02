@@ -197,6 +197,38 @@ class TVClient:
         """Clear all cached thumbnails."""
         self._thumbnail_cache.clear()
 
+    def get_slideshow_status(self) -> dict:
+        """Get current slideshow status."""
+        try:
+            tv = self._get_tv()
+            return tv.art().get_slideshow_status()
+        except Exception as e:
+            _LOGGER.warning(f"Failed to get slideshow status: {e}")
+            return {"error": str(e)}
+
+    def set_slideshow_status(self, enabled: bool, duration: int = 15, shuffle: bool = True) -> dict:
+        """Set slideshow status.
+
+        Args:
+            enabled: Whether slideshow is enabled
+            duration: Minutes between image changes (0 to disable)
+            shuffle: Random order (True) or sequential (False)
+        """
+        try:
+            tv = self._get_tv()
+            if not enabled:
+                return tv.art().set_slideshow_status(duration=0)
+            else:
+                # type=True means shuffle/random, type=False means sequential
+                return tv.art().set_slideshow_status(
+                    duration=duration,
+                    type=shuffle,
+                    category=2  # MY-C0002 = My Collection
+                )
+        except Exception as e:
+            _LOGGER.error(f"Failed to set slideshow status: {e}")
+            return {"error": str(e)}
+
 
 def get_tv_client() -> Optional[TVClient]:
     """Get current TVClient instance."""

@@ -62,6 +62,12 @@ class TVSettingsRequest(BaseModel):
     manual_entry: bool = False
 
 
+class SlideshowRequest(BaseModel):
+    enabled: bool
+    duration: int = 15  # minutes
+    shuffle: bool = True
+
+
 DEFAULT_MATTE_PERCENT = int(os.environ.get("DEFAULT_MATTE_PERCENT", "10"))
 
 
@@ -319,3 +325,34 @@ async def upload_artwork(request: UploadRequest):
             results.append({"path": item["path"], "success": False, "error": str(e)})
 
     return {"results": results}
+
+
+@router.get("/slideshow")
+async def get_slideshow_status():
+    """Get current slideshow status."""
+    client = require_tv_client()
+    try:
+        status = await asyncio.to_thread(client.get_slideshow_status)
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/slideshow")
+async def set_slideshow_status(request: SlideshowRequest):
+    """Set slideshow status."""
+    client = require_tv_client()
+    try:
+        result = await asyncio.to_thread(
+            client.set_slideshow_status,
+            request.enabled,
+            request.duration,
+            request.shuffle
+        )
+        if "error" in result:
+            raise HTTPException(status_code=503, detail=result["error"])
+        return {"success": True, **result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
