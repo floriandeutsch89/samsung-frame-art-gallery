@@ -5,51 +5,44 @@
       <span class="placeholder-text">&nbsp;</span>
     </div>
 
-    <!-- Row 2: Panel header -->
+    <!-- Row 2: Panel header with slideshow controls -->
     <div class="panel-header">
-      <h2>TV Artwork</h2>
-      <button class="refresh-btn" @click="loadArtwork" :disabled="loading">
-        Refresh
-      </button>
-    </div>
-
-    <!-- Slideshow settings (only visible when TV connected) -->
-    <div v-if="connected" class="slideshow-settings">
-      <h4>Slideshow</h4>
-      <div class="slideshow-controls">
-        <label class="toggle-label">
-          <input
-            type="checkbox"
-            v-model="slideshowEnabled"
-            @change="updateSlideshow"
-            :disabled="slideshowLoading"
-          />
-          <span>Enable slideshow</span>
-        </label>
-
-        <div v-if="slideshowEnabled" class="slideshow-options">
-          <label>
-            <span>Change every:</span>
-            <select v-model.number="slideshowDuration" @change="updateSlideshow" :disabled="slideshowLoading">
-              <option :value="5">5 minutes</option>
-              <option :value="10">10 minutes</option>
-              <option :value="15">15 minutes</option>
-              <option :value="30">30 minutes</option>
-              <option :value="60">1 hour</option>
-            </select>
-          </label>
-
+      <div class="header-left">
+        <h2>TV Artwork</h2>
+        <!-- Slideshow controls inline (only visible when TV connected) -->
+        <div v-if="connected" class="slideshow-inline">
           <label class="toggle-label">
             <input
               type="checkbox"
-              v-model="slideshowShuffle"
+              v-model="slideshowEnabled"
               @change="updateSlideshow"
               :disabled="slideshowLoading"
             />
-            <span>Shuffle order</span>
+            <span>Slideshow</span>
           </label>
+          <template v-if="slideshowEnabled">
+            <select v-model.number="slideshowDuration" @change="updateSlideshow" :disabled="slideshowLoading" class="duration-select">
+              <option :value="5">5 min</option>
+              <option :value="10">10 min</option>
+              <option :value="15">15 min</option>
+              <option :value="30">30 min</option>
+              <option :value="60">1 hr</option>
+            </select>
+            <label class="toggle-label">
+              <input
+                type="checkbox"
+                v-model="slideshowShuffle"
+                @change="updateSlideshow"
+                :disabled="slideshowLoading"
+              />
+              <span>Shuffle</span>
+            </label>
+          </template>
         </div>
       </div>
+      <button class="refresh-btn" @click="loadArtwork" :disabled="loading">
+        Refresh
+      </button>
     </div>
 
     <!-- Row 3: Image grid -->
@@ -251,14 +244,51 @@ defineExpose({ loadArtwork })
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid #2a2a4e;
   background: #12121f;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .panel-header h2 {
   font-size: 1.1rem;
   margin: 0;
+}
+
+.slideshow-inline {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+.duration-select {
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid #3a3a5e;
+  background: #2a2a4e;
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.duration-select:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+
+.duration-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .refresh-btn {
@@ -279,69 +309,17 @@ defineExpose({ loadArtwork })
   font-size: 0.9rem;
 }
 
-/* Slideshow settings */
-.slideshow-settings {
-  padding: 1rem;
-  background: #12121f;
-  border-bottom: 1px solid #2a2a4e;
-}
-
-.slideshow-settings h4 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.9rem;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.slideshow-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.slideshow-options {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  padding-left: 1.5rem;
-}
-
+/* Toggle label for slideshow checkboxes */
 .toggle-label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   cursor: pointer;
 }
 
 .toggle-label input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   cursor: pointer;
-}
-
-.slideshow-options label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.slideshow-options select {
-  padding: 0.3rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid #3a3a5e;
-  background: #2a2a4e;
-  color: white;
-  cursor: pointer;
-}
-
-.slideshow-options select:focus {
-  outline: none;
-  border-color: #4a90d9;
-}
-
-.slideshow-options select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>
