@@ -22,6 +22,12 @@
       @uploaded="$emit('uploaded')"
       @preview="(img) => $emit('preview', img, false)"
     />
+
+    <CollectionsPanel
+      v-show="activeTab === 'collections'"
+      @uploaded="$emit('uploaded')"
+      @preview="(img, isLocal) => $emit('preview', img, isLocal)"
+    />
   </div>
 </template>
 
@@ -29,12 +35,14 @@
 import { ref, watch, onMounted } from 'vue'
 import LocalPanel from '../views/LocalPanel.vue'
 import MetPanel from '../views/MetPanel.vue'
+import CollectionsPanel from '../views/CollectionsPanel.vue'
 
 defineEmits(['uploaded', 'preview'])
 
 const tabs = [
   { id: 'local', label: 'Local Images' },
-  { id: 'met', label: 'Metropolitan Museum of Art' }
+  { id: 'met', label: 'Metropolitan Museum of Art' },
+  { id: 'collections', label: 'Collections' }
 ]
 
 // Read tab from URL if specified
