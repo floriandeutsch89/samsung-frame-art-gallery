@@ -38,7 +38,7 @@
         <template #default="{ item }">
           <ImageCard
             :image="item"
-            :selected="selectedIds.has(item.path || item.object_id || item.content_id)"
+            :selected="selectedIds.has(item._id || item.path || item.object_id || item.content_id)"
             :is-current="currentId === (item.content_id)"
             :is-local="isLocal"
             @toggle="$emit('toggle', item)"
