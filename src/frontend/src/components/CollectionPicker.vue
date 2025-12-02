@@ -6,6 +6,23 @@
         <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
 
+      <!-- Preview of images being added -->
+      <div class="items-preview" v-if="items.length > 0">
+        <div class="preview-thumbnails">
+          <div
+            v-for="(item, index) in previewItems"
+            :key="index"
+            class="preview-thumb"
+          >
+            <img :src="getItemThumbnail(item)" alt="" loading="lazy" />
+          </div>
+          <div v-if="overflowCount > 0" class="overflow-badge">
+            +{{ overflowCount }}
+          </div>
+        </div>
+        <span class="preview-label">{{ items.length }} {{ items.length === 1 ? 'image' : 'images' }}</span>
+      </div>
+
       <div class="picker-content">
         <div class="new-collection">
           <input
@@ -24,35 +41,66 @@
 
         <div v-if="loading" class="loading">Loading collections...</div>
 
-        <div v-else-if="collections.length === 0" class="empty">
-          No collections yet. Create one above.
-        </div>
+        <template v-else-if="collections.length === 0">
+          <div class="empty">
+            No collections yet. Create one above.
+          </div>
+        </template>
 
-        <div v-else class="collections-list">
-          <button
-            v-for="collection in collections"
-            :key="collection.id"
-            class="collection-item"
-            :disabled="adding"
-            @click="addToCollection(collection.id)"
-          >
-            <span class="collection-name">{{ collection.name }}</span>
-            <span class="collection-count">{{ collection.item_count }} items</span>
-          </button>
-        </div>
+        <template v-else>
+          <div class="section-label">YOUR COLLECTIONS</div>
+          <div class="collections-list">
+            <button
+              v-for="collection in collections"
+              :key="collection.id"
+              class="collection-item"
+              :disabled="adding"
+              @click="addToCollection(collection.id)"
+            >
+              <div class="item-thumb">
+                <img
+                  v-if="collection.preview_thumbnail"
+                  :src="collection.preview_thumbnail"
+                  alt=""
+                />
+                <span v-else>📁</span>
+              </div>
+              <div class="item-details">
+                <span class="collection-name">{{ collection.name }}</span>
+                <span class="collection-count">{{ collection.item_count }} items</span>
+              </div>
+            </button>
+          </div>
+        </template>
       </div>
+
+      <!-- Success state -->
+      <Transition name="fade">
+        <div v-if="showSuccess" class="success-overlay">
+          <div class="success-content">
+            <div class="success-icon">✓</div>
+            <h3>Added to collection</h3>
+            <p>{{ successCollection?.name }}</p>
+            <div class="success-actions">
+              <button class="secondary" @click="$emit('close')">Done</button>
+              <button class="primary" @click="viewCollection">View Collection</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+
+const MAX_PREVIEW = 5
 
 const props = defineProps({
   items: {
     type: Array,
     required: true
-    // Array of {type: 'local', path: '...'} or {type: 'met', object_id: 123}
   }
 })
 
@@ -63,6 +111,20 @@ const loading = ref(true)
 const newName = ref('')
 const creating = ref(false)
 const adding = ref(false)
+const showSuccess = ref(false)
+const successCollection = ref(null)
+
+const previewItems = computed(() => props.items.slice(0, MAX_PREVIEW))
+const overflowCount = computed(() => Math.max(0, props.items.length - MAX_PREVIEW))
+
+const getItemThumbnail = (item) => {
+  if (item.type === 'local') {
+    return `/api/images/${encodeURIComponent(item.path)}/thumbnail`
+  } else if (item.type === 'met') {
+    return item.image_url_small || item.image_url || ''
+  }
+  return ''
+}
 
 const loadCollections = async () => {
   loading.value = true
@@ -83,7 +145,6 @@ const createAndAdd = async () => {
 
   creating.value = true
   try {
-    // Create collection
     const createRes = await fetch('/api/collections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,15 +152,15 @@ const createAndAdd = async () => {
     })
     const collection = await createRes.json()
 
-    // Add items to it
     await fetch(`/api/collections/${collection.id}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: props.items })
     })
 
+    successCollection.value = collection
+    showSuccess.value = true
     emit('added', collection)
-    emit('close')
   } catch (e) {
     console.error('Failed to create collection:', e)
   } finally {
@@ -117,13 +178,21 @@ const addToCollection = async (collectionId) => {
     })
 
     const collection = collections.value.find(c => c.id === collectionId)
+    successCollection.value = collection
+    showSuccess.value = true
     emit('added', collection)
-    emit('close')
   } catch (e) {
     console.error('Failed to add to collection:', e)
   } finally {
     adding.value = false
   }
+}
+
+const viewCollection = () => {
+  const params = new URLSearchParams(window.location.search)
+  params.set('tab', 'collections')
+  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`)
+  window.location.reload()
 }
 
 onMounted(loadCollections)
@@ -142,19 +211,21 @@ onMounted(loadCollections)
 
 .collection-picker {
   background: #1a1a2e;
-  border-radius: 8px;
+  border-radius: 12px;
   width: 90%;
-  max-width: 400px;
+  max-width: 420px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
 }
 
 .picker-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: 1rem 1.25rem;
   border-bottom: 1px solid #2a2a4e;
 }
 
@@ -177,9 +248,56 @@ onMounted(loadCollections)
   color: white;
 }
 
+/* Items preview */
+.items-preview {
+  padding: 1rem 1.25rem;
+  background: #12121f;
+  border-bottom: 1px solid #2a2a4e;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.preview-thumbnails {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.preview-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #2a2a4e;
+}
+
+.preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.overflow-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background: #3a3a5e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--collection-text-secondary);
+}
+
+.preview-label {
+  font-size: 0.9rem;
+  color: var(--collection-text-secondary);
+}
+
 .picker-content {
-  padding: 1rem;
+  padding: 1rem 1.25rem;
   overflow-y: auto;
+  flex: 1;
 }
 
 .new-collection {
@@ -190,8 +308,8 @@ onMounted(loadCollections)
 
 .new-collection input {
   flex: 1;
-  padding: 0.5rem;
-  border-radius: 4px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
   border: 1px solid #3a3a5e;
   background: #2a2a4e;
   color: white;
@@ -199,15 +317,16 @@ onMounted(loadCollections)
 
 .new-collection input:focus {
   outline: none;
-  border-color: #4a90d9;
+  border-color: var(--collection-accent);
 }
 
 .new-collection button {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
   border: none;
-  background: #4a90d9;
-  color: white;
+  background: var(--collection-accent);
+  color: #1a1a2e;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -222,6 +341,15 @@ onMounted(loadCollections)
   padding: 2rem;
 }
 
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--collection-text-muted);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
 .collections-list {
   display: flex;
   flex-direction: column;
@@ -230,20 +358,21 @@ onMounted(loadCollections)
 
 .collection-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: #2a2a4e;
-  border: 1px solid #3a3a5e;
-  border-radius: 4px;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--collection-card-bg);
+  border: 1px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
   color: white;
   text-align: left;
+  transition: all 0.2s;
 }
 
 .collection-item:hover:not(:disabled) {
-  background: #3a3a5e;
-  border-color: #4a90d9;
+  background: var(--collection-card-bg-hover);
+  border-color: var(--collection-accent-muted);
 }
 
 .collection-item:disabled {
@@ -251,12 +380,108 @@ onMounted(loadCollections)
   cursor: not-allowed;
 }
 
+.item-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: #2a2a4e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .collection-name {
   font-weight: 500;
 }
 
 .collection-count {
-  color: #888;
+  color: var(--collection-text-secondary);
   font-size: 0.85rem;
+}
+
+/* Success overlay */
+.success-overlay {
+  position: absolute;
+  inset: 0;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.success-content {
+  text-align: center;
+  padding: 2rem;
+}
+
+.success-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--collection-accent);
+  color: #1a1a2e;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.success-content h3 {
+  margin: 0 0 0.5rem 0;
+}
+
+.success-content p {
+  margin: 0 0 1.5rem 0;
+  color: var(--collection-text-secondary);
+}
+
+.success-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.success-actions button {
+  padding: 0.6rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.success-actions .primary {
+  background: var(--collection-accent);
+  color: #1a1a2e;
+}
+
+.success-actions .secondary {
+  background: #3a3a5e;
+  color: white;
+}
+
+/* Transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
