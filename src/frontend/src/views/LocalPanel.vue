@@ -33,6 +33,13 @@
       </template>
       <button
         class="secondary"
+        :disabled="selectedIds.size === 0"
+        @click="showCollectionPicker = true"
+      >
+        + Collection
+      </button>
+      <button
+        class="secondary"
         :disabled="selectedIds.size === 0 || uploading"
         @click="upload(false)"
       >
@@ -59,15 +66,23 @@
       @upload="uploadFromPreview"
       @offset-change="fetchPreviewWithOffset"
     />
+
+    <CollectionPicker
+      v-if="showCollectionPicker"
+      :items="selectedItemsForCollection"
+      @close="showCollectionPicker = false"
+      @added="onAddedToCollection"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import ImageGrid from '../components/ImageGrid.vue'
 import ActionBar from '../components/ActionBar.vue'
 import CropSettings from '../components/CropSettings.vue'
 import PreviewModal from '../components/PreviewModal.vue'
+import CollectionPicker from '../components/CollectionPicker.vue'
 
 const emit = defineEmits(['uploaded', 'preview'])
 
@@ -84,6 +99,14 @@ const previewLoading = ref(false)
 const previews = ref([])
 const reframeEnabled = ref(false)
 const reframeOffsets = ref({})  // path -> {x, y}
+const showCollectionPicker = ref(false)
+
+const selectedItemsForCollection = computed(() => {
+  return Array.from(selectedIds.value).map(path => ({
+    type: 'local',
+    path
+  }))
+})
 
 const loadImages = async () => {
   loading.value = true
@@ -235,6 +258,12 @@ const upload = async (display) => {
   } finally {
     uploading.value = false
   }
+}
+
+const onAddedToCollection = (collection) => {
+  console.log(`Added ${selectedIds.value.size} items to collection: ${collection.name}`)
+  // Optionally clear selection after adding
+  // selectedIds.value = new Set()
 }
 
 watch(currentFolder, loadImages)
