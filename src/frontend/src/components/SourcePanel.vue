@@ -1,6 +1,6 @@
 <template>
   <div class="source-panel">
-    <div class="source-tabs">
+    <div class="source-tabs" :class="{ 'collections-active': activeTab === 'collections' }">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -116,5 +116,10 @@ watch(activeTab, (newTab) => {
 .source-tabs button.active {
   color: white;
   border-bottom: 2px solid #4a90d9;
+}
+
+/* When Collections tab is active, add left padding to align with sidebar */
+.source-tabs.collections-active {
+  padding-left: 200px; /* Match sidebar width */
 }
 </style>
