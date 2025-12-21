@@ -514,7 +514,7 @@ defineExpose({ loadCollections })
 
 .sidebar-layout {
   display: flex;
-  flex: 1;
+  grid-row: 2 / -1; /* Start after tabs, span to end */
   min-height: 0;
   overflow: hidden;
 }
