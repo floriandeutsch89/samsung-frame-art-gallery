@@ -1,7 +1,7 @@
 <template>
-  <div class="collections-panel" :class="{ 'has-sidebar': !isMobile }">
+  <div class="collections-panel">
     <!-- Desktop: Sidebar Layout -->
-    <template v-if="!isMobile">
+    <div v-if="!isMobile" class="sidebar-layout">
       <CollectionsSidebar
         :collections="collections"
         :selected-id="selectedCollectionId"
@@ -100,7 +100,7 @@
           </ActionBar>
         </template>
       </div>
-    </template>
+    </div>
 
     <!-- Mobile: Bottom Sheet Layout -->
     <template v-else>
@@ -512,7 +512,7 @@ defineExpose({ loadCollections })
   display: contents;
 }
 
-.collections-panel.has-sidebar {
+.sidebar-layout {
   display: flex;
   flex: 1;
   min-height: 0;
