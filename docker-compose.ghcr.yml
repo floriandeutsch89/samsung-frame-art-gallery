@@ -25,7 +25,7 @@ services:
 
   app:
     # Pull pre-built image from GHCR instead of building
-    image: ghcr.io/YOUR_USERNAME/samsung-frame-art-gallery:latest
+    image: ghcr.io/floriandeutsch89/samsung-frame-art-gallery:latest
     container_name: frame-app
     networks:
       - caddy-artgallery
