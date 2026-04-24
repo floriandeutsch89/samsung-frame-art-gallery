@@ -2,9 +2,12 @@
 
 A self-hosted web application for managing artwork on Samsung Frame TVs. Browse your local image collection or discover public domain masterpieces from the Metropolitan Museum of Art, then upload them to your TV with customizable framing options.
 
+> **Note:** This is a fork of [samsung-frame-art-gallery](https://github.com/mcsdodo/samsung-frame-art-gallery) with a custom infrastructure stack including Caddy reverse proxy, automated GHCR releases, and enhanced security features.
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
-![Vue](https://img.shields.io/badge/vue-3.4+-green.svg)
+![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
+![Node](https://img.shields.io/badge/node-22+-green.svg)
+![Vue](https://img.shields.io/badge/vue-3.5+-green.svg)
 
 ## Features
 
@@ -27,7 +30,8 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 - **Responsive Design** - Split-panel desktop layout, tabbed mobile interface
 - **Infinite Scroll** - Seamless browsing through large collections
 - **Masonry Layout** - Beautiful variable-height image grid
-- **Docker-Ready** - Simple one-command deployment
+- **Docker-Ready** - One-command deployment with automatic HTTPS via Caddy
+- **Secure HTTPS** - Built-in reverse proxy with self-signed certificate support
 
 ## Screenshots
 
@@ -67,14 +71,18 @@ Fill the entire frame with draggable positioning for single images.
    cd samsung-frame-art-gallery
    ```
 
-2. **Configure your images path** (optional)
+2. **Configure your setup**
 
-   Create a `.env` file or edit `docker-compose.yml`:
+   Copy `.env.example` to `.env` and customize as needed:
    ```bash
-   # Option A: Using .env file
-   echo "IMAGES_DIR=/path/to/your/images" > .env
+   cp .env.example .env
+   ```
 
-   # Option B: Edit docker-compose.yml volumes directly
+   Edit `.env` to set your domain and paths:
+   ```env
+   IMAGES_DIR=./images
+   DOMAIN=artgallery.example.com         # Update to your domain
+   TV_IP=                                # Optional: pre-configured TV IP
    ```
 
 3. **Start the application**
@@ -84,42 +92,131 @@ Fill the entire frame with draggable positioning for single images.
 
 4. **Open the web UI**
 
-   Navigate to `http://localhost:8080`
+   Navigate to `https://artgallery.example.com` (or your configured domain)
+
+   **Note:** You'll see a browser warning about the self-signed certificate. This is expected for self-hosted local network applications. Click "Advanced" and accept the certificate to proceed.
 
 5. **Connect to your TV**
 
    Click the TV status indicator in the header to discover and select your Samsung TV.
 
+### Using Pre-built Images from GHCR
+
+Instead of building the image locally, you can use pre-built images from GitHub Container Registry:
+
+1. **Use the GHCR-based compose file**
+   ```bash
+   cp .env.example .env
+   docker-compose -f docker-compose.ghcr.yml up -d
+   ```
+
+2. **Update the image reference** in `docker-compose.ghcr.yml`
+   - Replace `YOUR_USERNAME` with the actual GitHub username
+   - Example: `ghcr.io/yourusername/samsung-frame-art-gallery:latest`
+
+3. **Authenticate with GHCR** (if image is private)
+   ```bash
+   docker login ghcr.io -u yourusername -p YOUR_GITHUB_TOKEN
+   ```
+
+**Available image tags:**
+- `latest` - Most recent stable release
+- `1.0.0`, `1.1.0`, etc. - Specific version tags (semantic versioning)
+
+**Benefits:**
+- No local build required - faster deployment
+- Consistent images across environments
+- Automatic updates via GitHub Actions on releases
+
+## Versioning & Releases
+
+This project uses **Semantic Versioning** and maintains a [CHANGELOG.md](CHANGELOG.md) documenting all changes.
+
+### Release Process
+
+1. Update `VERSION` file with new version number (e.g., `1.1.0`)
+2. Add changes to `CHANGELOG.md` under the version header
+3. Commit and push to main/master
+4. GitHub Actions automatically:
+   - Creates a GitHub Release with changelog content
+   - Builds and pushes Docker image to GHCR
+   - Tags image with version number and `latest`
+
+### GitHub Container Registry
+
+Images are automatically published to:
+```
+ghcr.io/YOUR_USERNAME/samsung-frame-art-gallery:VERSION
+ghcr.io/YOUR_USERNAME/samsung-frame-art-gallery:latest
+```
+
+Build status and image metadata are visible on the [Packages](../../packages) page.
+
 ## Configuration
 
 ### Environment Variables
+
+Create a `.env` file (see `.env.example`) to configure the application:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `IMAGES_DIR` | `./images` | Path to your local image collection |
 | `TV_IP` | - | Pre-configure TV IP (skips auto-discovery) |
-| `DEFAULT_CROP_PERCENT` | `5` | Default edge crop percentage |
-| `DEFAULT_MATTE_PERCENT` | `10` | Default matte size percentage |
+| `DEFAULT_CROP_PERCENT` | `5` | Default edge crop percentage (0-50) |
+| `DEFAULT_MATTE_PERCENT` | `10` | Default matte size percentage (0-50) |
+| `DOMAIN` | `artgallery.example.com` | Domain for HTTPS reverse proxy |
 
-### Docker Compose
+### HTTPS & Reverse Proxy
+
+The application uses **Caddy** as a reverse proxy to automatically provide HTTPS with self-signed certificates. This setup:
+
+- Listens on ports 80 (HTTP) and 443 (HTTPS)
+- Automatically redirects HTTP → HTTPS
+- Automatically generates and manages self-signed certificates
+- Reads the domain from the `DOMAIN` environment variable (set in `.env`)
+- Proxies all requests to the FastAPI backend
+
+**Certificate Generation:**
+
+Caddy automatically generates self-signed certificates on first start. No manual setup required. The certificates are stored in the `caddy_config` Docker volume and persist across restarts.
+
+The domain is configured via the `DOMAIN` environment variable in `.env`, which is passed to Caddy at startup.
+
+For **production use with Let's Encrypt**, update the Caddyfile:
+```
+{$DOMAIN}:443 {
+  tls your-email@example.com  # Enable ACME (Let's Encrypt)
+  reverse_proxy app:8080
+}
+```
+
+### Docker Compose Services
 
 ```yaml
 services:
-  app:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
+  caddy:
+    image: caddy:2-alpine
+    # Reverse proxy with automatic self-signed HTTPS
+    # Reads DOMAIN from .env for hostname configuration
+    # Ports: 80 (HTTP → HTTPS redirect), 443 (HTTPS)
     ports:
-      - "8080:8080"
+      - "80:80"
+      - "443:443"
     volumes:
-      - /path/to/your/images:/images:ro    # Your image collection
-      - ./data/thumbnails:/thumbnails      # Thumbnail cache
-      - ./data:/app/data                   # TV settings persistence
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data              # Certificate storage
+      - caddy_config:/config          # Configuration persistence
     environment:
-      - TV_IP=${TV_IP:-}
-      - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
-      - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
-    restart: unless-stopped
+      - DOMAIN=${DOMAIN:-artgallery.example.com}
+
+  app:
+    build: ./docker/Dockerfile
+    ports:
+      - "8080:8080"  # Direct access for debugging
+    volumes:
+      - ./images:/images:ro
+      - ./data/thumbnails:/thumbnails
+      - ./data:/app/data
 ```
 
 ## Usage
@@ -149,14 +246,16 @@ services:
 
 ### Local Setup
 
-**Backend:**
+**Backend (with uv):**
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies and create virtual environment
+uv sync
+
+# Activate virtual environment
+source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
 
 # Run with hot reload
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
@@ -196,6 +295,26 @@ samsung-frame-art-gallery/
 │       │   └── components/
 │       └── package.json
 ├── docker/
+│   ├── Dockerfile              # Multi-stage build
+│   └── Caddyfile               # Caddy reverse proxy config
+├── .github/workflows/
+│   ├── build.yml               # Build and push Docker image
+│   └── release.yml             # Create GitHub Release
+├── docker-compose.yml
+├── docker-compose.ghcr.yml
+├── pyproject.toml              # Python project configuration (uv)
+├── requirements.txt            # Legacy pip requirements
+└── Caddyfile                   # Caddy configuration
+│   │   └── preview_cache.py    # Preview generation cache
+│   └── frontend/               # Vue 3 + Vite SPA
+│       ├── src/
+│       │   ├── views/
+│       │   │   ├── LocalPanel.vue
+│       │   │   ├── MetPanel.vue
+│       │   │   └── TVPanel.vue
+│       │   └── components/
+│       └── package.json
+├── docker/
 │   └── Dockerfile              # Multi-stage build
 ├── docker-compose.yml
 └── requirements.txt
@@ -203,11 +322,27 @@ samsung-frame-art-gallery/
 
 ### Tech Stack
 
-- **Backend:** FastAPI, Python 3.11+, Pillow, httpx
-- **Frontend:** Vue 3.4, Vite 5
+- **Backend:** FastAPI 0.115+, Python 3.13-slim, Pillow 11+, httpx 0.27+
+- **Frontend:** Vue 3.5+, Vite 5.2+, Node 22-alpine (build)
+- **Reverse Proxy:** Caddy 2-alpine (HTTPS, self-signed certificates)
 - **TV Communication:** [samsung-tv-ws-api](https://github.com/NickWaterton/samsung-tv-ws-api)
 - **External APIs:** [Met Museum Collection API](https://metmuseum.github.io/)
-- **Infrastructure:** Docker, Docker Compose
+- **Infrastructure:** Docker 20.10+, Docker Compose 2.0+
+- **CI/CD:** GitHub Actions (automatic builds to GHCR on version changes)
+
+## Deployment
+
+### Local Build & Run
+```bash
+docker-compose up -d --build
+```
+Builds image locally and starts services.
+
+### From GHCR (Pre-built)
+```bash
+docker-compose -f docker-compose.ghcr.yml up -d
+```
+Uses pre-built image from GitHub Container Registry - faster startup, no build required.
 
 ## API Reference
 
@@ -257,48 +392,18 @@ Tested with Samsung Frame TVs. Should work with any Samsung TV that supports Art
 
 ## Troubleshooting
 
-### TV not discovered
+**Caddy/domain issues:** Verify `.env` has `DOMAIN=artgallery.example.com`. Restart: `docker-compose down && docker-compose up -d`
 
-- Ensure your TV is on the same network/subnet as the host
-- TV must be powered on (not in deep standby)
-- Try manually entering the TV IP address in settings
-- Check if your network blocks SSDP multicast (UDP 1900)
+**Linux permissions:** If images won't load, check: `ls -l images/`. If you're not UID 1000, run: `sudo chown -R 1000:1000 ./images ./data`
 
-### Upload fails
+**HTTPS certificate warning:** Expected with self-signed certificates. Click "Advanced" → "Proceed" and browser will remember.
 
-- Verify the TV is in Art Mode (not regular TV mode)
-- Check that image format is supported (JPEG, PNG)
-- Ensure sufficient storage space on TV
-- Large images may timeout - try with smaller files first
+**TV not discovered:** Ensure TV is on same network and powered on (not deep standby).
 
-### Thumbnails not loading
+**Upload fails:** Verify TV is in Art Mode and image is JPEG/PNG format.
 
-- First load generates thumbnails - allow time for processing
-- Check that images volume is mounted correctly
-- Verify read permissions on the images directory
-
-### Met Museum images not loading
-
-- The Met API may be slow for large searches
-- Some artworks don't have high-resolution images available
-- Network connectivity to `collectionapi.metmuseum.org` required
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+**Thumbnails missing:** Allow time for first-run processing; check read permissions on images directory.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [samsung-tv-ws-api](https://github.com/NickWaterton/samsung-tv-ws-api) - Samsung TV WebSocket API library
-- [The Metropolitan Museum of Art Collection API](https://metmuseum.github.io/) - Public domain artwork access
-- Samsung for creating the Frame TV with Art Mode
+MIT License - see [LICENSE](LICENSE) file for details.

@@ -1,3 +1,7 @@
+# Docker Compose - Pull pre-built image from GHCR
+# This compose file pulls the image instead of building locally
+# Useful for deployment without building
+
 version: '3.8'
 
 services:
@@ -20,9 +24,8 @@ services:
       - app
 
   app:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
+    # Pull pre-built image from GHCR instead of building
+    image: ghcr.io/YOUR_USERNAME/samsung-frame-art-gallery:latest
     container_name: frame-app
     networks:
       - caddy-artgallery

@@ -1,0 +1,40 @@
+name: Local Setup Tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
+
+jobs:
+  test-local-setup:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies with uv
+        run: uv sync
+
+      - name: Install git dependencies
+        run: uv pip install -r requirements.txt
+
+      - name: Run local setup tests
+        run: python tests/test_local_setup.py
