@@ -394,7 +394,16 @@ Tested with Samsung Frame TVs. Should work with any Samsung TV that supports Art
 
 **Caddy/domain issues:** Verify `.env` has `DOMAIN=artgallery.example.com`. Restart: `docker-compose down && docker-compose up -d`
 
-**Linux permissions:** If images won't load, check: `ls -l images/`. If you're not UID 1000, run: `sudo chown -R 1000:1000 ./images ./data`
+**Linux permissions:**
+If images or thumbnails won't load, or you see errors like `[Errno 13] Permission denied: '/thumbnails/tv'`, your bind-mounted directories may be owned by root or another user.
+
+To fix this, ensure the container's appuser (UID 1000) owns the relevant folders:
+
+```bash
+sudo chown -R 1000:1000 ./images ./data
+```
+
+This is required on Linux when using bind mounts, since Docker creates new host folders as root by default. (You may need to run this after first starting the container.)
 
 **HTTPS certificate warning:** Expected with self-signed certificates. Click "Advanced" → "Proceed" and browser will remember.
 
