@@ -169,6 +169,16 @@ onUnmounted(() => {
   font-size: 1.5rem;
 }
 
+@media (max-width: 768px) {
+  .header {
+    padding: 0.4rem 0.75rem;
+    justify-content: flex-end;
+  }
+  .header h1 {
+    display: none;
+  }
+}
+
 .header-right {
   display: flex;
   align-items: center;

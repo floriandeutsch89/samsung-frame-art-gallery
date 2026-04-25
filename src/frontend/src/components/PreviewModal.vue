@@ -32,13 +32,25 @@
       </div>
 
       <!-- Single image reframe mode with drag -->
-      <div v-else-if="reframeEnabled && selectedPaths.length === 1" class="reframe-container">
+      <div v-else-if="reframeEnabled && selectedPaths.length === 1" class="reframe-container" ref="containerRef">
+        <!-- Close button shown only in landscape where header is hidden -->
+        <button class="close-landscape" @click="$emit('close')">&times;</button>
+        <!-- Fullscreen toggle shown only in landscape -->
+        <button class="fullscreen-btn" @click="toggleFullscreen" :title="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+          <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+          </svg>
+        </button>
         <div class="reframe-instructions">
           Drag the image to position within the frame. Darkened areas will be cropped.
         </div>
         <div
           class="reframe-canvas"
           ref="viewportRef"
+          :style="canvasPixelWidth ? { width: canvasPixelWidth + 'px', height: canvasPixelHeight + 'px' } : {}"
           @mousedown="startDrag"
           @touchstart="startDrag"
         >
@@ -123,8 +135,30 @@ const props = defineProps({
   }
 })
 
+// Fullscreen
+const isFullscreen = ref(false)
+
+const toggleFullscreen = async () => {
+  if (!document.fullscreenElement) {
+    try {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' })
+    } catch {
+      // iOS Safari doesn't support requestFullscreen — nothing to do
+    }
+  } else {
+    try {
+      await document.exitFullscreen()
+    } catch {}
+  }
+}
+
+const onFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
 // Reframe drag state
 const viewportRef = ref(null)
+const containerRef = ref(null)
 const originalImageUrl = ref(null)
 const imageNaturalWidth = ref(0)
 const imageNaturalHeight = ref(0)
@@ -141,28 +175,49 @@ const TARGET_RATIO = 16 / 9
 const CANVAS_WIDTH = 800
 const CANVAS_HEIGHT = 500  // Larger than 16:9 to show context
 
-// Calculate image dimensions for the canvas view
+// JS-driven canvas sizing: measure the container and compute pixel-perfect dimensions
+// so the canvas fills the available space on any screen size / orientation.
+const canvasPixelWidth = ref(0)
+const canvasPixelHeight = ref(0)
+
+const updateCanvasSize = () => {
+  const el = containerRef.value
+  if (!el) return
+  const { width, height } = el.getBoundingClientRect()
+  const aspect = CANVAS_WIDTH / CANVAS_HEIGHT  // 8/5 = 1.6
+  // Fit within available space, maintaining aspect ratio
+  if (width / height > aspect) {
+    // Height is the constraint
+    canvasPixelHeight.value = height
+    canvasPixelWidth.value = height * aspect
+  } else {
+    // Width is the constraint
+    canvasPixelWidth.value = width
+    canvasPixelHeight.value = width / aspect
+  }
+}
+
+let resizeObserver = null
+
+// Calculate image dimensions for the canvas view (as percentages of CANVAS_WIDTH/HEIGHT)
 const canvasImageStyle = computed(() => {
   if (!imageNaturalWidth.value || !imageNaturalHeight.value) return {}
 
   const imgRatio = imageNaturalWidth.value / imageNaturalHeight.value
-
-  // Scale image to fit within canvas while showing full image
   let imgDisplayWidth, imgDisplayHeight
 
   if (imgRatio > CANVAS_WIDTH / CANVAS_HEIGHT) {
-    // Image is wider - fit to canvas width
     imgDisplayWidth = CANVAS_WIDTH
     imgDisplayHeight = CANVAS_WIDTH / imgRatio
   } else {
-    // Image is taller - fit to canvas height
     imgDisplayHeight = CANVAS_HEIGHT
     imgDisplayWidth = CANVAS_HEIGHT * imgRatio
   }
 
+  // Use percentages so the canvas can be any CSS size
   return {
-    width: `${imgDisplayWidth}px`,
-    height: `${imgDisplayHeight}px`
+    width: `${imgDisplayWidth / CANVAS_WIDTH * 100}%`,
+    height: `${imgDisplayHeight / CANVAS_HEIGHT * 100}%`,
   }
 })
 
@@ -204,46 +259,12 @@ const cropWindowStyle = computed(() => {
   const cropLeft = (CANVAS_WIDTH - imgDisplayWidth) / 2 + maxOffsetX * offsetX.value
   const cropTop = (CANVAS_HEIGHT - imgDisplayHeight) / 2 + maxOffsetY * offsetY.value
 
+  // Use percentages so the canvas can be any CSS size
   return {
-    width: `${cropWidth}px`,
-    height: `${cropHeight}px`,
-    left: `${cropLeft}px`,
-    top: `${cropTop}px`
-  }
-})
-
-// Keep old imageStyle for backwards compatibility (used in drag calculations)
-const imageStyle = computed(() => {
-  if (!imageNaturalWidth.value || !imageNaturalHeight.value) return {}
-
-  const imgRatio = imageNaturalWidth.value / imageNaturalHeight.value
-  const viewportWidth = 800  // Fixed viewport width
-  const viewportHeight = viewportWidth / TARGET_RATIO
-
-  let imgDisplayWidth, imgDisplayHeight
-
-  if (imgRatio > TARGET_RATIO) {
-    // Image wider than viewport - fit height, overflow width
-    imgDisplayHeight = viewportHeight
-    imgDisplayWidth = viewportHeight * imgRatio
-  } else {
-    // Image taller than viewport - fit width, overflow height
-    imgDisplayWidth = viewportWidth
-    imgDisplayHeight = viewportWidth / imgRatio
-  }
-
-  // Calculate max offset in pixels
-  const maxOffsetX = imgDisplayWidth - viewportWidth
-  const maxOffsetY = imgDisplayHeight - viewportHeight
-
-  // Apply offset
-  const translateX = -maxOffsetX * offsetX.value
-  const translateY = -maxOffsetY * offsetY.value
-
-  return {
-    width: `${imgDisplayWidth}px`,
-    height: `${imgDisplayHeight}px`,
-    transform: `translate(${translateX}px, ${translateY}px)`
+    width: `${cropWidth / CANVAS_WIDTH * 100}%`,
+    height: `${cropHeight / CANVAS_HEIGHT * 100}%`,
+    left: `${cropLeft / CANVAS_WIDTH * 100}%`,
+    top: `${cropTop / CANVAS_HEIGHT * 100}%`,
   }
 })
 
@@ -280,12 +301,14 @@ const onDrag = (e) => {
 
   const imgRatio = imageNaturalWidth.value / imageNaturalHeight.value
 
-  // Scale from screen pixels to canvas pixels to account for max-width shrinking the canvas
+  // Scale from screen pixels to canvas coordinate pixels (separate X/Y for robustness)
   const canvasEl = viewportRef.value
-  const scale = canvasEl ? CANVAS_WIDTH / canvasEl.getBoundingClientRect().width : 1
+  const rect = canvasEl ? canvasEl.getBoundingClientRect() : null
+  const scaleX = rect ? CANVAS_WIDTH / rect.width : 1
+  const scaleY = rect ? CANVAS_HEIGHT / rect.height : 1
 
-  const deltaX = (clientX - dragStartX.value) * scale
-  const deltaY = (clientY - dragStartY.value) * scale
+  const deltaX = (clientX - dragStartX.value) * scaleX
+  const deltaY = (clientY - dragStartY.value) * scaleY
 
   // Get displayed image dimensions (same calc as canvasImageStyle)
   let imgDisplayWidth, imgDisplayHeight
@@ -359,12 +382,33 @@ const onZoomChange = () => {
 
 watch(() => [props.reframeEnabled, props.selectedPaths], loadOriginalImage, { immediate: true })
 
+watch(containerRef, (el) => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  if (el) {
+    resizeObserver = new ResizeObserver(updateCanvasSize)
+    resizeObserver.observe(el)
+    updateCanvasSize()
+  }
+})
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+})
+
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
   document.removeEventListener('touchcancel', stopDrag)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  resizeObserver?.disconnect()
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {})
+  }
 })
 </script>
 
@@ -530,14 +574,10 @@ onUnmounted(() => {
   color: white;
 }
 
-/* Mobile responsiveness */
+/* Mobile portrait: stack comparison images */
 @media (max-width: 768px) {
   .comparison {
     grid-template-columns: 1fr;
-  }
-
-  .modal-content {
-    max-height: 95vh;
   }
 }
 
@@ -579,24 +619,29 @@ onUnmounted(() => {
 
 .reframe-container {
   flex: 1;
+  min-height: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.5rem;
+  padding: 0.75rem 1.25rem;
   overflow: hidden;
+  gap: 0.5rem;
 }
 
 .reframe-instructions {
   color: #aaa;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
 .reframe-canvas {
   position: relative;
-  width: 800px;
-  height: 500px;
-  max-width: 100%;
+  /* JS (ResizeObserver) sets explicit width+height via inline style;
+     these CSS values are the fallback before JS fires. */
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 8 / 5;
   cursor: grab;
   border-radius: 4px;
   background: #1a1a2e;
@@ -656,5 +701,128 @@ onUnmounted(() => {
   bottom: -2px;
   right: -2px;
   border-width: 0 3px 3px 0;
+}
+
+/* Close + fullscreen buttons overlaid on canvas in landscape (hidden otherwise) */
+.close-landscape,
+.fullscreen-btn {
+  display: none;
+  position: absolute;
+  z-index: 10;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: white;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+}
+
+.close-landscape {
+  top: 6px;
+  right: 6px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.fullscreen-btn {
+  top: 6px;
+  right: 44px;
+}
+
+.fullscreen-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.close-landscape:hover,
+.fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/* ── Landscape mobile (phones in landscape) ── */
+@media (orientation: landscape) and (max-height: 600px) {
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-content {
+    border-radius: 0;
+    max-height: 100dvh;
+    height: 100dvh;
+  }
+
+  /* Hide title bar — close button moves to overlay */
+  .modal-header {
+    display: none;
+  }
+
+  .close-landscape,
+  .fullscreen-btn {
+    display: flex;
+  }
+
+  /* Canvas container fills all remaining height */
+  .reframe-container {
+    flex: 1;
+    min-height: 0;
+    padding: 4px;
+    gap: 0;
+  }
+
+  .reframe-instructions {
+    display: none;
+  }
+
+  /* Slim zoom + footer row */
+  .zoom-bar {
+    padding: 0.25rem 0.75rem;
+    border-top: 1px solid #2a2a4e;
+    border-bottom: none;
+  }
+
+  .modal-footer {
+    padding: 0.35rem 0.75rem;
+  }
+}
+
+/* Portrait mobile: full-screen modal, compact chrome */
+@media (max-width: 768px) and (orientation: portrait) {
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-content {
+    border-radius: 0;
+    max-height: 100dvh;
+  }
+
+  .modal-header {
+    padding: 0.5rem 1rem;
+  }
+
+  .modal-header h2 {
+    font-size: 0.9rem;
+  }
+
+  .modal-footer {
+    padding: 0.5rem 1rem;
+  }
+
+  .zoom-bar {
+    padding: 0.3rem 0.75rem;
+  }
+
+  .reframe-container {
+    padding: 0.25rem 0.5rem;
+    gap: 0.25rem;
+  }
+
+  .reframe-instructions {
+    display: none;
+  }
 }
 </style>
