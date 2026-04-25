@@ -7,6 +7,7 @@ TARGET_RATIO = 16 / 9  # Samsung Frame TV aspect ratio
 DEFAULT_MATTE_PERCENT = int(os.environ.get("DEFAULT_MATTE_PERCENT", "10"))
 TV_MAX_WIDTH = 3840
 TV_MAX_HEIGHT = 2160
+TV_MAX_FILE_SIZE = 8 * 1024 * 1024  # 8 MB — Samsung WebSocket API limit
 
 
 def process_for_tv(
@@ -64,10 +65,18 @@ def process_for_tv(
     if img.width > TV_MAX_WIDTH or img.height > TV_MAX_HEIGHT:
         img = img.resize((TV_MAX_WIDTH, TV_MAX_HEIGHT), Image.Resampling.LANCZOS)
 
-    # JPEG is 3-5x smaller than PNG for photographic content, visually identical on TV
-    output = io.BytesIO()
-    img.save(output, format='JPEG', quality=92, subsampling=0)
-    return output.getvalue()
+    # Encode as JPEG, stepping down quality until within the Samsung TV upload limit.
+    # Complex paintings at 3840×2160 can exceed 8 MB at high quality, causing error -11.
+    for quality in (92, 85, 78, 70, 60):
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG', quality=quality, subsampling=0)
+        data = buf.getvalue()
+        if len(data) <= TV_MAX_FILE_SIZE:
+            return data
+    # Last resort: switch to 4:2:0 chroma subsampling for a further size reduction.
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=60, subsampling=2)
+    return buf.getvalue()
 
 
 def _crop_image(img: Image.Image, crop_percent: int) -> Image.Image:
