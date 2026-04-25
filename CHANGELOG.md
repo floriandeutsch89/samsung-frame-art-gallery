@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend** - Delete option for local images
 - **Frontend** - Zoom option for re-framing images
 - **Frontend** - Support for more image file types (.png, .webp, .tiff)
+- **Frontend** - Password option via `APP_PASSWORD` variable
 
 ## [1.0.1] - 2026-04-25
 

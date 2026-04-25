@@ -3,12 +3,14 @@ import os
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
 from src.api import images, tv, met, collections
+from src.api.auth import APP_PASSWORD, is_authenticated, router as auth_router
 from src.services.thumbnails import initialize_thumbnails
 from src.services.tv_client import TVClient
 
@@ -45,7 +47,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Samsung Frame Art Gallery", lifespan=lifespan)
 
-# API routes
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if not APP_PASSWORD or request.url.path == "/login":
+        return await call_next(request)
+    if is_authenticated(request):
+        return await call_next(request)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return RedirectResponse("/login", status_code=302)
+
+
+# Auth + API routes
+app.include_router(auth_router)
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(tv.router, prefix="/api/tv", tags=["tv"])
 app.include_router(met.router, prefix="/api/met", tags=["met"])

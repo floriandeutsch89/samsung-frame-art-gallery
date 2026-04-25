@@ -31,6 +31,7 @@ services:
       - ${IMAGES_DIR:-./images}:/images
       - app_data:/app/data
     environment:
+      - APP_PASSWORD=${APP_PASSWORD:-}
       - TV_IP=${TV_IP:-}
       - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
       - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
