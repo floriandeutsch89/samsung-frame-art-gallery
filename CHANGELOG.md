@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-04-25
+
+### Added
+- **Frontend** - Option to upload your own images via phone or browser
+- **Frontend** - Automatic HEIC conversion
+- **Frontend** - visual indication when uploading images
+
+### Changed
+- **Frontend** - Cap images to 4k resolution when uploading (TV can't handle any more)
+- **Frontend** - Re-framing is now enabled by default
+- **Docker Architecture** - Changed to volume mounts for app_data instead of bind mounts
+- **Docker Architecture** - Reduced final docker image size to ~300 MB
+
+### Fixed
+- **Frontend** - Preview Modal for Re-framing was resetting its position
+- **Frontend** - the TV_IP variable is now properly used to auto-connect to the TV
+- **Frontend** - various performance issues
+
 ## [1.0.0] - 2026-04-24
 
 ### Added

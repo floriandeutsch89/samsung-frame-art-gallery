@@ -13,20 +13,24 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 
 ### Image Sources
 - **Local Images** - Browse your personal image collection with folder navigation and smart thumbnails
+- **Image Upload** - Upload images directly from your browser or phone (including HEIC from iPhone — auto-converted to JPEG)
 - **Met Museum Collection** - Discover and upload public domain artwork from The Metropolitan Museum of Art's open collection (400,000+ works)
 
 ### TV Integration
 - **Auto TV Discovery** - Automatically finds Samsung Frame TVs on your network via SSDP
-- **Batch Upload** - Upload multiple images to your TV at once
+- **TV_IP Auto-Connect** - Set `TV_IP` in `.env` to auto-connect on startup and pre-fill the connection dialog
+- **Batch Upload** - Upload multiple images to your TV at once with real-time progress
 - **Art Management** - View, display, and delete artwork on your TV
+- **Slideshow Control** - Enable/disable and configure the TV's built-in slideshow
 - **Live Preview** - See exactly how your images will look before uploading
 
 ### Image Processing
 - **Smart Cropping** - Remove unwanted edges from images (0-50%)
 - **Auto Matte** - Automatically add museum-style matting to fit the 16:9 frame
-- **Re-framing Mode** - Fill the entire frame with adjustable positioning for single images
+- **Re-framing Mode** - Fill the entire frame with draggable positioning (enabled by default), with touch support for mobile
 
 ### User Experience
+- **Upload Progress** - Real-time per-image progress indicator during TV uploads (SSE streaming)
 - **Responsive Design** - Split-panel desktop layout, tabbed mobile interface
 - **Infinite Scroll** - Seamless browsing through large collections
 - **Masonry Layout** - Beautiful variable-height image grid
@@ -61,7 +65,8 @@ Fill the entire frame with draggable positioning for single images.
 
 - Docker and Docker Compose
 - Samsung Frame TV (or any Samsung TV with Art Mode) on the same network
-- A folder of images (optional - you can also use the Met Museum collection)
+- A folder of images (optional - you can also use the Met Museum collection or upload directly)
+
 
 ### Installation
 
@@ -78,27 +83,27 @@ Fill the entire frame with draggable positioning for single images.
    cp .env.example .env
    ```
 
-   Edit `.env` to set your domain and paths:
+   Edit `.env` to set your image directory and TV IP (if desired):
    ```env
    IMAGES_DIR=./images
-   DOMAIN=artgallery.example.com         # Update to your domain
-   TV_IP=                                # Optional: pre-configured TV IP
+   TV_IP=                                # Optional: pre-configure TV IP
    ```
 
 3. **Start the application**
    ```bash
-   docker-compose up -d
+   docker compose up -d --build
    ```
+
+   This will start a single container and use a Docker volume for persistent app data (including thumbnails) at `/app/data`. Thumbnails are stored at `/app/data/thumbnails` inside the container.
 
 4. **Open the web UI**
 
-   Navigate to `https://artgallery.example.com` (or your configured domain)
-
-   **Note:** You'll see a browser warning about the self-signed certificate. This is expected for self-hosted local network applications. Click "Advanced" and accept the certificate to proceed.
+   Navigate to `http://localhost:8080` (or your server's IP/hostname and port 8080).
 
 5. **Connect to your TV**
 
-   Click the TV status indicator in the header to discover and select your Samsung TV.
+   Click the TV status indicator in the header to discover and select your Samsung TV. If `TV_IP` is set in `.env`, the app auto-connects on startup and pre-fills the IP in the connection dialog.
+
 
 ### Using Pre-built Images from GHCR
 
@@ -107,10 +112,10 @@ Instead of building the image locally, you can use pre-built images from GitHub 
 1. **Use the GHCR-based compose file**
    ```bash
    cp .env.example .env
-   docker-compose -f docker-compose.ghcr.yml up -d
+   docker compose -f docker-compose.ghcr.yml up -d
    ```
 
-2. **Update the image reference** in `docker-compose.ghcr.yml`
+2. **Update the image reference** in `docker-compose.ghcr.yml` if needed
    - Replace `YOUR_USERNAME` with the actual GitHub username
    - Example: `ghcr.io/yourusername/samsung-frame-art-gallery:latest`
 
@@ -161,9 +166,10 @@ Create a `.env` file (see `.env.example`) to configure the application:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `IMAGES_DIR` | `./images` | Path to your local image collection |
-| `TV_IP` | - | Pre-configure TV IP (skips auto-discovery) |
+| `TV_IP` | - | Pre-configure TV IP — auto-connects on startup and pre-fills the connection dialog |
 | `DEFAULT_CROP_PERCENT` | `5` | Default edge crop percentage (0-50) |
 | `DEFAULT_MATTE_PERCENT` | `10` | Default matte size percentage (0-50) |
+| `THUMBNAILS_DIR` | `/app/data/thumbnails` (Docker) / `data/thumbnails` (local) | Directory for cached thumbnails — auto-detected, override if needed |
 | `DOMAIN` | `artgallery.example.com` | Domain for HTTPS reverse proxy |
 
 ### HTTPS & Reverse Proxy
@@ -190,44 +196,43 @@ For **production use with Let's Encrypt**, update the Caddyfile:
 }
 ```
 
-### Docker Compose Services
+
+### Docker Compose Service (Single Container)
 
 ```yaml
 services:
-  caddy:
-    image: caddy:2-alpine
-    # Reverse proxy with automatic self-signed HTTPS
-    # Reads DOMAIN from .env for hostname configuration
-    # Ports: 80 (HTTP → HTTPS redirect), 443 (HTTPS)
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data              # Certificate storage
-      - caddy_config:/config          # Configuration persistence
-    environment:
-      - DOMAIN=${DOMAIN:-artgallery.example.com}
+   app:
+      build:
+         context: .
+         dockerfile: docker/Dockerfile
+      container_name: frame-app
+      ports:
+         - "8080:8080"
+      volumes:
+         - ${IMAGES_DIR:-./images}:/images
+         - app_data:/app/data
+      environment:
+         - TV_IP=${TV_IP:-}
+         - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
+         - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
+      restart: unless-stopped
 
-  app:
-    build: ./docker/Dockerfile
-    ports:
-      - "8080:8080"  # Direct access for debugging
-    volumes:
-      - ./images:/images:ro
-      - ./data/thumbnails:/thumbnails
-      - ./data:/app/data
+volumes:
+   app_data:
 ```
+
+This setup uses a Docker volume for all app data and thumbnails, so data persists across container restarts.
 
 ## Usage
 
 ### Local Images Tab
 
 1. Browse your image collection using folder navigation
-2. Select one or more images by clicking on them
-3. Adjust crop and matte percentages, or enable "Re-framing" mode
-4. Click "Preview" to see how images will look on the TV
-5. Click "Upload" or "Upload & Display"
+2. Upload new images via the **+ Add Image** button (supports JPEG, PNG, WebP, HEIC/HEIF)
+3. Select one or more images by clicking on them
+4. Adjust crop and matte percentages, or use **Re-framing** mode (on by default) to fill the frame with draggable positioning
+5. Click "Preview" to see how images will look on the TV
+6. Click "Upload" or "Upload & Display" — a progress bar shows each image being sent
 
 ### Met Museum Tab
 
@@ -241,6 +246,12 @@ services:
 1. View all artwork currently stored on your TV
 2. Click any artwork to display it
 3. Delete artwork you no longer want
+
+### Upload Progress
+
+When uploading multiple images, the action bar shows a real-time progress indicator:
+- **Processing** phase: images are cropped, matted, and encoded in parallel
+- **Uploading** phase: each image is sent to the TV sequentially (Samsung's WebSocket API is strictly sequential), showing current image name and count
 
 ## Development
 
@@ -261,6 +272,8 @@ source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
+Thumbnails are cached in `data/thumbnails/` relative to the working directory when running outside Docker. Set `THUMBNAILS_DIR` to override.
+
 **Frontend:**
 ```bash
 cd src/frontend
@@ -273,56 +286,51 @@ npm run dev
 ```
 samsung-frame-art-gallery/
 ├── src/
-│   ├── main.py                 # FastAPI application entry point
+│   ├── main.py                    # FastAPI application entry point
 │   ├── api/
-│   │   ├── images.py           # Local image endpoints
-│   │   ├── tv.py               # TV control & upload endpoints
-│   │   └── met.py              # Met Museum API endpoints
+│   │   ├── images.py              # Local image endpoints (browse + upload)
+│   │   ├── tv.py                  # TV control & upload endpoints
+│   │   ├── met.py                 # Met Museum API endpoints
+│   │   └── collections.py         # Collections endpoints
 │   ├── services/
-│   │   ├── tv_client.py        # Samsung TV WebSocket client
-│   │   ├── tv_discovery.py     # SSDP-based TV discovery
-│   │   ├── tv_settings.py      # Persistent TV selection
-│   │   ├── met_client.py       # Met Museum API client
-│   │   ├── image_processor.py  # Crop, matte, reframe processing
-│   │   ├── thumbnails.py       # Local image thumbnails
-│   │   └── preview_cache.py    # Preview generation cache
-│   └── frontend/               # Vue 3 + Vite SPA
-│       ├── src/
-│       │   ├── views/
-│       │   │   ├── LocalPanel.vue
-│       │   │   ├── MetPanel.vue
-│       │   │   └── TVPanel.vue
-│       │   └── components/
-│       └── package.json
+│   │   ├── tv_client.py           # Samsung TV WebSocket client
+│   │   ├── tv_discovery.py        # SSDP-based TV discovery
+│   │   ├── tv_settings.py         # Persistent TV selection
+│   │   ├── tv_thumbnail_cache.py  # Persistent TV artwork thumbnail cache
+│   │   ├── met_client.py          # Met Museum API client
+│   │   ├── image_processor.py     # Crop, matte, reframe processing
+│   │   ├── thumbnails.py          # Local image thumbnails
+│   │   └── preview_cache.py       # Preview generation cache
+│   └── frontend/                  # Vue 3 + Vite SPA
+│       └── src/
+│           ├── views/
+│           │   ├── LocalPanel.vue
+│           │   ├── MetPanel.vue
+│           │   ├── CollectionsPanel.vue
+│           │   └── TVPanel.vue
+│           ├── components/
+│           │   ├── TvConnectionModal.vue
+│           │   ├── PreviewModal.vue
+│           │   └── CropSettings.vue
+│           └── composables/
+│               └── useUploadStream.js  # Shared SSE upload progress state
 ├── docker/
-│   ├── Dockerfile              # Multi-stage build
+│   ├── Dockerfile              # Multi-stage build (frontend → python deps → runtime)
+│   ├── entrypoint.sh
 │   └── Caddyfile               # Caddy reverse proxy config
 ├── .github/workflows/
-│   ├── build.yml               # Build and push Docker image
-│   └── release.yml             # Create GitHub Release
+│   ├── build.yml               # Build and push Docker image to GHCR
+│   ├── release.yml             # Create GitHub Release with changelog
+│   └── test.yml                # Run tests on PRs (Ubuntu, macOS, Windows)
 ├── docker-compose.yml
 ├── docker-compose.ghcr.yml
 ├── pyproject.toml              # Python project configuration (uv)
-├── requirements.txt            # Legacy pip requirements
-└── Caddyfile                   # Caddy configuration
-│   │   └── preview_cache.py    # Preview generation cache
-│   └── frontend/               # Vue 3 + Vite SPA
-│       ├── src/
-│       │   ├── views/
-│       │   │   ├── LocalPanel.vue
-│       │   │   ├── MetPanel.vue
-│       │   │   └── TVPanel.vue
-│       │   └── components/
-│       └── package.json
-├── docker/
-│   └── Dockerfile              # Multi-stage build
-├── docker-compose.yml
 └── requirements.txt
 ```
 
 ### Tech Stack
 
-- **Backend:** FastAPI 0.115+, Python 3.13-slim, Pillow 11+, httpx 0.27+
+- **Backend:** FastAPI 0.115+, Python 3.13-slim, Pillow 11+, pillow-heif 0.18+, httpx 0.27+
 - **Frontend:** Vue 3.5+, Vite 5.2+, Node 22-alpine (build)
 - **Reverse Proxy:** Caddy 2-alpine (HTTPS, self-signed certificates)
 - **TV Communication:** [samsung-tv-ws-api](https://github.com/NickWaterton/samsung-tv-ws-api)
@@ -354,6 +362,7 @@ Uses pre-built image from GitHub Container Registry - faster startup, no build r
 | GET | `/api/images/folders` | List available folders |
 | GET | `/api/images/{path}/thumbnail` | Get image thumbnail |
 | GET | `/api/images/{path}/full` | Get full image |
+| POST | `/api/images/upload` | Upload image file (JPEG, PNG, WebP, HEIC) |
 
 ### Met Museum
 
@@ -371,16 +380,21 @@ Uses pre-built image from GitHub Container Registry - faster startup, no build r
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/api/tv/config` | Get app config defaults |
 | GET | `/api/tv/discover` | Scan for Samsung TVs |
 | GET | `/api/tv/status` | Get TV connection status |
-| GET | `/api/tv/settings` | Get saved TV selection |
+| GET | `/api/tv/settings` | Get saved TV selection (includes `env_ip`) |
 | POST | `/api/tv/settings` | Save TV selection |
 | GET | `/api/tv/artwork` | List artwork on TV |
 | GET | `/api/tv/artwork/current` | Get currently displayed artwork |
 | POST | `/api/tv/artwork/current` | Display specific artwork |
 | DELETE | `/api/tv/artwork/{id}` | Delete artwork from TV |
+| GET | `/api/tv/artwork/{id}/thumbnail` | Get artwork thumbnail |
 | POST | `/api/tv/preview` | Generate upload preview |
 | POST | `/api/tv/upload` | Upload local images to TV |
+| POST | `/api/tv/upload/stream` | Upload with SSE progress events |
+| GET | `/api/tv/slideshow` | Get slideshow status |
+| POST | `/api/tv/slideshow` | Enable/disable slideshow |
 
 ## TV Compatibility
 
@@ -390,14 +404,23 @@ Tested with Samsung Frame TVs. Should work with any Samsung TV that supports Art
 - v3.x (older Frame models)
 - v4.x+ (newer models with SSL)
 
+**Upload performance:** The Samsung TV WebSocket art API is strictly sequential — each image must be fully transferred before the next begins. Upload speed is limited by the TV's hardware and the API design, not the server. Image processing (cropping, matting, encoding) is parallelized to minimize total time.
+
 ## Troubleshooting
 
 **Caddy/domain issues:** Verify `.env` has `DOMAIN=artgallery.example.com`. Restart: `docker-compose down && docker-compose up -d`
 
-**Linux permissions:**
-If images or thumbnails won't load, or you see errors like `[Errno 13] Permission denied: '/thumbnails/tv'`, your bind-mounted directories may be owned by root or another user.
 
-To fix this, ensure the container's appuser (UID 1000) owns the relevant folders:
+**Linux permissions:**
+If images or thumbnails won't load, or you see errors like `[Errno 13] Permission denied: '/app/data/thumbnails'`, your bind-mounted directories may be owned by root or another user.
+
+To fix this, ensure the container's appuser (UID 1000) owns the relevant folders. For the Docker volume, you can run:
+
+```bash
+docker compose exec app chown -R 1000:1000 /app/data
+```
+
+If you use bind mounts for images or data, you may also need:
 
 ```bash
 sudo chown -R 1000:1000 ./images ./data
@@ -407,11 +430,13 @@ This is required on Linux when using bind mounts, since Docker creates new host 
 
 **HTTPS certificate warning:** Expected with self-signed certificates. Click "Advanced" → "Proceed" and browser will remember.
 
-**TV not discovered:** Ensure TV is on same network and powered on (not deep standby).
+**TV not discovered:** Ensure TV is on same network and powered on (not deep standby). Set `TV_IP` in `.env` to skip discovery.
 
-**Upload fails:** Verify TV is in Art Mode and image is JPEG/PNG format.
+**Upload fails:** Verify TV is in Art Mode. Supported upload formats: JPEG, PNG, WebP, HEIC/HEIF (auto-converted to JPEG).
 
 **Thumbnails missing:** Allow time for first-run processing; check read permissions on images directory.
+
+**TV_IP not taking effect:** `TV_IP` auto-connects on startup only when no saved TV settings exist. If you previously connected to a different TV, clear saved settings via the connection dialog or restart with a fresh `app_data` volume.
 
 ## License
 
