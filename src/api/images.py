@@ -14,7 +14,7 @@ pillow_heif.register_heif_opener()
 router = APIRouter()
 
 IMAGES_DIR = Path(os.environ.get("IMAGES_DIR", "/images"))
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".heic", ".heif"}
 UPLOAD_ACCEPTED_MIME = {
     "image/jpeg", "image/jpg",
     "image/png", "image/webp", "image/gif",
@@ -167,6 +167,13 @@ async def get_thumbnail(path: str, size: int = 200):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+MIME_TYPES = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp",
+    ".tiff": "image/tiff", ".tif": "image/tiff",
+    ".heic": "image/heic", ".heif": "image/heif",
+}
+
 @router.get("/{path:path}/full")
 async def get_full_image(path: str):
     image_path = get_safe_path(path)
@@ -174,4 +181,5 @@ async def get_full_image(path: str):
     if not is_valid_image(image_path):
         raise HTTPException(status_code=404, detail="Image not found")
 
-    return Response(content=image_path.read_bytes(), media_type="image/jpeg")
+    mime = MIME_TYPES.get(image_path.suffix.lower(), "image/jpeg")
+    return Response(content=image_path.read_bytes(), media_type=mime)

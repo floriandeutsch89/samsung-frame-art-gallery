@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Frontend** - Delete option for local images
+- **Frontend** - Zoom option for re-framing images
+- **Frontend** - Support for more image file types (.png, .webp, .tiff)
 
 ## [1.0.1] - 2026-04-25
 
@@ -16,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend** - Option to upload your own images via phone or browser
 - **Frontend** - Automatic HEIC conversion
 - **Frontend** - visual indication when uploading images
-- **Frontend** - Zoom option for re-framing images
 
 ### Changed
 - **Frontend** - Cap images to 4k resolution when uploading (TV can't handle any more)

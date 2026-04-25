@@ -5,13 +5,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
 from PIL import Image
+import pillow_heif
+
+pillow_heif.register_heif_opener()
 
 logger = logging.getLogger(__name__)
 
 THUMBNAIL_SIZE = (200, 200)
 CACHE_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/app/data/thumbnails" if Path("/.dockerenv").exists() else "data/thumbnails"))
 IMAGES_DIR = Path(os.environ.get("IMAGES_DIR", "/images"))
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".heic", ".heif"}
 MAX_WORKERS = 4
 
 
