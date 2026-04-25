@@ -5,6 +5,8 @@ from PIL import Image
 
 TARGET_RATIO = 16 / 9  # Samsung Frame TV aspect ratio
 DEFAULT_MATTE_PERCENT = int(os.environ.get("DEFAULT_MATTE_PERCENT", "10"))
+TV_MAX_WIDTH = 3840
+TV_MAX_HEIGHT = 2160
 
 
 def process_for_tv(
@@ -57,9 +59,13 @@ def process_for_tv(
             img = _crop_image(img, crop_percent)
         img = _add_matte(img, matte_percent)
 
-    # Output as PNG
+    # Cap to TV native resolution — sending more pixels gains nothing and slows upload
+    if img.width > TV_MAX_WIDTH or img.height > TV_MAX_HEIGHT:
+        img = img.resize((TV_MAX_WIDTH, TV_MAX_HEIGHT), Image.Resampling.LANCZOS)
+
+    # JPEG is 3-5x smaller than PNG for photographic content, visually identical on TV
     output = io.BytesIO()
-    img.save(output, format='PNG', optimize=True)
+    img.save(output, format='JPEG', quality=92, subsampling=0)
     return output.getvalue()
 
 
