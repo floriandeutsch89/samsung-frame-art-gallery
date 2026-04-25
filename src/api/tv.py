@@ -153,6 +153,33 @@ async def get_status():
     return status
 
 
+@router.get("/info")
+async def get_tv_info():
+    """Get combined TV status, artwork count, and raw device info."""
+    client = require_tv_client()
+    try:
+        status = await asyncio.to_thread(client.get_status)
+        if not status.get("connected"):
+            return {**status, "artwork_count": None, "device_info": {}}
+
+        artwork_count = None
+        try:
+            artwork = await asyncio.to_thread(client.get_artwork_list)
+            artwork_count = len(artwork)
+        except Exception:
+            pass
+
+        device_info = {}
+        try:
+            device_info = await asyncio.to_thread(client.get_device_info)
+        except Exception:
+            pass
+
+        return {**status, "artwork_count": artwork_count, "device_info": device_info}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
 @router.get("/artwork")
 async def list_artwork():
     client = require_tv_client()

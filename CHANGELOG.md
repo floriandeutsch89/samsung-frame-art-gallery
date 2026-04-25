@@ -16,11 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reframed as image source (URL scraping)
 - option to delete all selected local images
 - hover effect on images
-- hover effect on images
 - option to hide Metropolitan Museum of Art Gallery (Reframed should be default)
 - Filenames for TV artworks (mapping table)
 - Sort Option for TV artworks
-- Download Option for TV artworks
 
 ### Changed
 **Frontend**

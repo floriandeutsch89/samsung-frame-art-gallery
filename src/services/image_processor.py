@@ -1,7 +1,10 @@
 """Image processing for TV upload: cropping and auto-matte."""
 import io
+import logging
 import os
 from PIL import Image
+
+_LOGGER = logging.getLogger(__name__)
 
 TARGET_RATIO = 16 / 9  # Samsung Frame TV aspect ratio
 DEFAULT_MATTE_PERCENT = int(os.environ.get("DEFAULT_MATTE_PERCENT", "10"))
@@ -52,6 +55,17 @@ def process_for_tv(
     elif img.mode != 'RGB':
         img = img.convert('RGB')
 
+    # Strip embedded metadata — Pillow carries ICC profile and EXIF through
+    # convert/crop/resize and embeds them in the output JPEG.
+    # Samsung TV firmware rejects non-sRGB ICC profiles (-11) and can also
+    # choke on unusual EXIF tags (e.g. non-standard color space markers).
+    had_icc = 'icc_profile' in img.info
+    had_exif = 'exif' in img.info
+    img.info.pop('icc_profile', None)
+    img.info.pop('exif', None)
+
+    _LOGGER.info(f"Processing image: {img.width}x{img.height} mode={img.mode} icc_stripped={had_icc} exif_stripped={had_exif} reframe={reframe_enabled} crop={crop_percent}% matte={matte_percent}%")
+
     if reframe_enabled:
         # Reframe mode: fill 16:9 completely
         img = _reframe_image(img, reframe_offset_x, reframe_offset_y, reframe_zoom)
@@ -65,18 +79,23 @@ def process_for_tv(
     if img.width > TV_MAX_WIDTH or img.height > TV_MAX_HEIGHT:
         img = img.resize((TV_MAX_WIDTH, TV_MAX_HEIGHT), Image.Resampling.LANCZOS)
 
+    _LOGGER.info(f"Post-process size: {img.width}x{img.height}")
+
     # Encode as JPEG, stepping down quality until within the Samsung TV upload limit.
     # Complex paintings at 3840×2160 can exceed 8 MB at high quality, causing error -11.
     for quality in (92, 85, 78, 70, 60):
         buf = io.BytesIO()
         img.save(buf, format='JPEG', quality=quality, subsampling=0)
         data = buf.getvalue()
+        _LOGGER.info(f"JPEG quality={quality}: {len(data):,} bytes (limit={TV_MAX_FILE_SIZE:,})")
         if len(data) <= TV_MAX_FILE_SIZE:
             return data
     # Last resort: switch to 4:2:0 chroma subsampling for a further size reduction.
     buf = io.BytesIO()
     img.save(buf, format='JPEG', quality=60, subsampling=2)
-    return buf.getvalue()
+    data = buf.getvalue()
+    _LOGGER.info(f"JPEG quality=60 subsampling=2 (fallback): {len(data):,} bytes")
+    return data
 
 
 def _crop_image(img: Image.Image, crop_percent: int) -> Image.Image:

@@ -138,28 +138,58 @@ class TVClient:
 
     def upload_artwork(self, image_data: bytes, display: bool = False) -> dict:
         tv = self._get_tv()
-        with tv.art() as art:
-            content_id = art.upload(image_data, file_type="jpg", matte="none", portrait_matte="none")
-            if display and content_id:
-                art.select_image(content_id)
+        with self._lock:
+            with tv.art() as art:
+                content_id = art.upload(image_data, file_type="jpg", matte="none", portrait_matte="none")
+                if display and content_id:
+                    art.select_image(content_id)
         return {"content_id": content_id} if content_id else {}
 
+    def _upload_single(self, art, image_data: bytes, display: bool) -> dict:
+        """Upload one image within an already-open art session."""
+        _LOGGER.info(f"Uploading artwork: {len(image_data):,} bytes, display={display}")
+        content_id = art.upload(image_data, file_type="jpg", matte="none", portrait_matte="none")
+        _LOGGER.info(f"Upload returned content_id={content_id!r}")
+        if display and content_id:
+            art.select_image(content_id)
+        return {"success": True, "content_id": content_id} if content_id else {"success": False, "error": "No content_id returned"}
+
+    def _upload_one(self, image_data: bytes, display: bool) -> dict:
+        """Upload one image with its own fresh art session.
+
+        Must be called while holding self._lock.
+        Each call opens a new WebSocket art session so that a prior failed
+        session's __exit__ can never block the next upload.
+        """
+        try:
+            tv = self._get_tv()
+            _LOGGER.info(f"Opening art session")
+            with tv.art() as art:
+                return self._upload_single(art, image_data, display)
+        except Exception as e:
+            error_str = str(e)
+            _LOGGER.warning(f"Upload failed ({len(image_data):,} bytes): {e}")
+            if "-11" in error_str:
+                error_str = f"{error_str} — TV custom artwork storage may be full; delete some existing artwork and try again"
+            return {"success": False, "error": error_str}
+
     def upload_artwork_batch(self, items: list[tuple[bytes, bool]]) -> list[dict]:
-        """Upload multiple images reusing a single WebSocket session.
+        """Upload multiple images sequentially, each with its own art session.
+
+        Holds the instance lock for the entire batch so thumbnail fetches
+        cannot interleave with upload traffic on the shared Samsung WebSocket.
+        Each image gets a fresh art session so that a failed session's cleanup
+        cannot block subsequent uploads.
 
         items: list of (image_data, display_this) pairs.
         """
-        tv = self._get_tv()
         results = []
-        with tv.art() as art:
-            for image_data, display in items:
-                try:
-                    content_id = art.upload(image_data, file_type="jpg", matte="none", portrait_matte="none")
-                    if display and content_id:
-                        art.select_image(content_id)
-                    results.append({"success": True, "content_id": content_id} if content_id else {"success": False, "error": "No content_id returned"})
-                except Exception as e:
-                    results.append({"success": False, "error": str(e)})
+        with self._lock:
+            _LOGGER.info(f"Starting batch upload of {len(items)} image(s) to {self._ip}")
+            for i, (image_data, display) in enumerate(items):
+                _LOGGER.info(f"Uploading item {i + 1}/{len(items)}")
+                results.append(self._upload_one(image_data, display))
+            _LOGGER.info(f"Batch upload complete: {len(results)} result(s)")
         return results
 
     def _fetch_thumbnail_from_tv(self, content_id: str) -> Optional[bytes]:
@@ -213,6 +243,11 @@ class TVClient:
     def clear_thumbnail_cache(self) -> None:
         """Clear all cached thumbnails."""
         self._thumbnail_cache.clear()
+
+    def get_device_info(self) -> dict:
+        """Get raw device info from TV art API."""
+        tv = self._get_tv()
+        return tv.art().get_device_info() or {}
 
     def get_slideshow_status(self) -> dict:
         """Get current slideshow status."""

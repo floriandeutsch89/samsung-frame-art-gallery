@@ -2,11 +2,60 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal">
       <div class="modal-header">
-        <h2>Connect to TV</h2>
+        <h2>{{ tvInfo && tvInfo.connected ? 'TV Status' : 'Connect to TV' }}</h2>
         <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
 
       <div class="modal-body">
+
+        <!-- TV Stats (shown when connected) -->
+        <div v-if="tvInfo && tvInfo.connected" class="tv-stats">
+          <button class="expand-btn" @click="statsExpanded = !statsExpanded">
+            <span>Developer information</span>
+            <span class="expand-arrow" :class="{ open: statsExpanded }">›</span>
+          </button>
+          <table v-if="statsExpanded" class="stats-table">
+            <tbody>
+              <tr>
+                <td>IP Address</td>
+                <td>{{ tvInfo.tv_ip }}</td>
+              </tr>
+              <tr>
+                <td>API Version</td>
+                <td>{{ tvInfo.api_version || '—' }}</td>
+              </tr>
+              <tr>
+                <td>Art Mode</td>
+                <td>{{ tvInfo.art_mode_supported ? 'Supported' : 'Not supported' }}</td>
+              </tr>
+              <tr>
+                <td>Custom Artworks</td>
+                <td :class="{ 'value-warning': tvInfo.artwork_count >= 90 }">
+                  {{ tvInfo.artwork_count !== null ? tvInfo.artwork_count : '—' }}
+                  <span v-if="tvInfo.artwork_count >= 90" class="warning-hint"> — near limit</span>
+                </td>
+              </tr>
+              <tr>
+                <td>SSL Thumbnails</td>
+                <td>{{ tvInfo.uses_ssl_thumbnails ? 'Yes' : 'No' }}</td>
+              </tr>
+              <template v-for="(val, key) in flatDeviceInfo" :key="key">
+                <tr>
+                  <td>{{ formatKey(key) }}</td>
+                  <td>{{ val }}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div class="divider"><span>Change TV</span></div>
+        </div>
+
+        <!-- Loading TV info -->
+        <div v-else-if="infoLoading" class="info-loading">
+          <div class="spinner small"></div>
+          <span>Loading TV info…</span>
+        </div>
+
         <!-- Scanning state -->
         <div v-if="scanning" class="scanning">
           <div class="spinner"></div>
@@ -72,7 +121,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const emit = defineEmits(['close', 'connected'])
 
@@ -82,6 +131,24 @@ const connecting = ref(false)
 const selectedIp = ref(null)
 const manualIp = ref('')
 const error = ref(null)
+const tvInfo = ref(null)
+const infoLoading = ref(false)
+const statsExpanded = ref(false)
+
+const flatDeviceInfo = computed(() => {
+  const info = tvInfo.value?.device_info
+  if (!info || typeof info !== 'object') return {}
+  const result = {}
+  for (const [k, v] of Object.entries(info)) {
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      result[k] = v
+    }
+  }
+  return result
+})
+
+const formatKey = (key) =>
+  key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
 const scan = async () => {
   scanning.value = true
@@ -175,6 +242,17 @@ const connectManual = async () => {
   }
 }
 
+const loadTvInfo = async () => {
+  infoLoading.value = true
+  try {
+    const res = await fetch('/api/tv/info')
+    if (res.ok) {
+      tvInfo.value = await res.json()
+    }
+  } catch {}
+  infoLoading.value = false
+}
+
 onMounted(async () => {
   try {
     const res = await fetch('/api/tv/settings')
@@ -183,6 +261,7 @@ onMounted(async () => {
       manualIp.value = data.env_ip
     }
   } catch {}
+  loadTvInfo()
   scan()
 })
 </script>
@@ -415,5 +494,84 @@ onMounted(async () => {
   border-radius: 6px;
   color: #ff6b6b;
   font-size: 0.9rem;
+}
+
+.tv-stats {
+  margin-bottom: 0.5rem;
+}
+
+.expand-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.expand-btn:hover {
+  color: #aaa;
+}
+
+.expand-arrow {
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+
+.expand-arrow.open {
+  transform: rotate(90deg);
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.stats-table td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid #2a2a4e;
+  vertical-align: top;
+}
+
+.stats-table td:first-child {
+  color: #888;
+  width: 45%;
+  white-space: nowrap;
+}
+
+.stats-table td:last-child {
+  color: #e0e0e0;
+  font-family: monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.value-warning {
+  color: #ffb347 !important;
+}
+
+.warning-hint {
+  color: #ffb347;
+  font-family: sans-serif;
+  font-size: 0.78rem;
+}
+
+.info-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #888;
+  font-size: 0.85rem;
+  padding: 0.75rem 0 1rem;
 }
 </style>
