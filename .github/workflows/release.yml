@@ -34,7 +34,8 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
 
           # Extract content between version header and next version or end of file
-          CHANGELOG=$(awk "/^## \[${VERSION}\]/,/^## \[/" CHANGELOG.md | sed '$d' | tail -n +2)
+          # Note: range pattern can't be used here because the start line also matches the end pattern
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found" CHANGELOG.md)
 
           # Multi-line safe output for $GITHUB_OUTPUT (heredoc syntax)
           {
