@@ -12,8 +12,9 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 ## Features
 
 ### Image Sources
-- **Local Images** - Browse your personal image collection with folder navigation and smart thumbnails
-- **Image Upload** - Upload images directly from your browser or phone (including HEIC from iPhone — auto-converted to JPEG)
+- **Local Images** - Browse JPEG, PNG, WebP, TIFF, and HEIC/HEIF files with folder navigation and smart thumbnails
+- **Image Upload** - Upload images directly from your browser or phone — HEIC auto-converted to JPEG on arrival
+- **Delete Local Images** - Remove uploaded or unwanted images directly from the gallery
 - **Met Museum Collection** - Discover and upload public domain artwork from The Metropolitan Museum of Art's open collection (400,000+ works)
 
 ### TV Integration
@@ -27,9 +28,10 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 ### Image Processing
 - **Smart Cropping** - Remove unwanted edges from images (0-50%)
 - **Auto Matte** - Automatically add museum-style matting to fit the 16:9 frame
-- **Re-framing Mode** - Fill the entire frame with draggable positioning (enabled by default), with touch support for mobile
+- **Re-framing Mode** - Fill the entire frame with draggable positioning and zoom (1×–5×), enabled by default, with touch support for mobile
 
 ### User Experience
+- **Password Protection** - Optional single-password auth via `APP_PASSWORD` — asked once, remembered forever via cookie
 - **Upload Progress** - Real-time per-image progress indicator during TV uploads (SSE streaming)
 - **Responsive Design** - Split-panel desktop layout, tabbed mobile interface
 - **Infinite Scroll** - Seamless browsing through large collections
@@ -166,10 +168,11 @@ Create a `.env` file (see `.env.example`) to configure the application:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `IMAGES_DIR` | `./images` | Path to your local image collection |
+| `APP_PASSWORD` | - | Password to protect the app — asked once, stored in a cookie. Leave empty to disable |
 | `TV_IP` | - | Pre-configure TV IP — auto-connects on startup and pre-fills the connection dialog |
 | `DEFAULT_CROP_PERCENT` | `5` | Default edge crop percentage (0-50) |
 | `DEFAULT_MATTE_PERCENT` | `10` | Default matte size percentage (0-50) |
-| `THUMBNAILS_DIR` | `/app/data/thumbnails` (Docker) / `data/thumbnails` (local) | Directory for cached thumbnails — auto-detected, override if needed |
+| `THUMBNAILS_DIR` | `/app/data/thumbnails` | Directory for cached thumbnails — auto-detected in Docker, override if needed |
 | `DOMAIN` | `artgallery.example.com` | Domain for HTTPS reverse proxy |
 
 ### HTTPS & Reverse Proxy
@@ -212,6 +215,7 @@ services:
          - ${IMAGES_DIR:-./images}:/images
          - app_data:/app/data
       environment:
+         - APP_PASSWORD=${APP_PASSWORD:-}
          - TV_IP=${TV_IP:-}
          - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
          - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
@@ -227,12 +231,14 @@ This setup uses a Docker volume for all app data and thumbnails, so data persist
 
 ### Local Images Tab
 
-1. Browse your image collection using folder navigation
-2. Upload new images via the **+ Add Image** button (supports JPEG, PNG, WebP, HEIC/HEIF)
-3. Select one or more images by clicking on them
-4. Adjust crop and matte percentages, or use **Re-framing** mode (on by default) to fill the frame with draggable positioning
-5. Click "Preview" to see how images will look on the TV
-6. Click "Upload" or "Upload & Display" — a progress bar shows each image being sent
+1. Browse your image collection using folder navigation — supports JPEG, PNG, WebP, TIFF, HEIC/HEIF
+2. Upload new images via the **+ Add Image** button (files are stored in the `uploads/` subfolder)
+3. Delete images using the trash button that appears on hover
+4. Select one or more images by clicking on them
+5. Use **Re-framing** mode (on by default) to fill the 16:9 frame — drag to pan, use the zoom slider (1×–5×) to crop tighter
+6. Or adjust **Crop** and **Matte** percentages for the classic bordered look
+7. Click **Preview** to see a before/after comparison
+8. Click **Upload** or **Upload & Display** — a progress bar shows each image being sent
 
 ### Met Museum Tab
 
@@ -362,7 +368,8 @@ Uses pre-built image from GitHub Container Registry - faster startup, no build r
 | GET | `/api/images/folders` | List available folders |
 | GET | `/api/images/{path}/thumbnail` | Get image thumbnail |
 | GET | `/api/images/{path}/full` | Get full image |
-| POST | `/api/images/upload` | Upload image file (JPEG, PNG, WebP, HEIC) |
+| POST | `/api/images/upload` | Upload image file (JPEG, PNG, WebP, TIFF, HEIC) |
+| DELETE | `/api/images/{path}` | Delete a local image file |
 
 ### Met Museum
 
@@ -407,6 +414,8 @@ Tested with Samsung Frame TVs. Should work with any Samsung TV that supports Art
 **Upload performance:** The Samsung TV WebSocket art API is strictly sequential — each image must be fully transferred before the next begins. Upload speed is limited by the TV's hardware and the API design, not the server. Image processing (cropping, matting, encoding) is parallelized to minimize total time.
 
 ## Troubleshooting
+
+**Stuck on login / forgot password:** Change `APP_PASSWORD` in `.env` and restart the container — all existing cookies are invalidated automatically (they are HMAC-signed with the password).
 
 **Caddy/domain issues:** Verify `.env` has `DOMAIN=artgallery.example.com`. Restart: `docker-compose down && docker-compose up -d`
 
