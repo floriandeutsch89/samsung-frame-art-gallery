@@ -107,7 +107,14 @@ const sortBy = ref('newest')
 const sortedArtwork = computed(() => {
   const items = [...artwork.value]
   if (sortBy.value === 'name') {
-    return items.sort((a, b) => (a.title || a.content_id || '').localeCompare(b.title || b.content_id || ''))
+    return items.sort((a, b) => {
+      const nameA = a.title || ''
+      const nameB = b.title || ''
+      if (!nameA && !nameB) return (a.content_id || '').localeCompare(b.content_id || '')
+      if (!nameA) return 1
+      if (!nameB) return -1
+      return nameA.localeCompare(nameB)
+    })
   }
   if (sortBy.value === 'newest') {
     return items.sort((a, b) => {
