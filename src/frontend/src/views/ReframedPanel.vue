@@ -44,11 +44,16 @@
           </select>
         </template>
 
+        <select v-model="sortBy" class="sort-select">
+          <option value="default">Default order</option>
+          <option value="name">Name (A–Z)</option>
+        </select>
+
       </div>
     </div>
 
     <ImageGrid
-      :images="artwork"
+      :images="sortedArtwork"
       :selected-ids="selectedIds"
       :loading="loading"
       :loading-more="loadingMore"
@@ -156,6 +161,15 @@ const artists = ref([])
 const loadingMeta = ref(false)
 
 const artwork = ref([])
+const sortBy = ref('default')
+
+const sortedArtwork = computed(() => {
+  if (sortBy.value === 'name') {
+    return [...artwork.value].sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+  }
+  return artwork.value
+})
+
 const selectedIds = ref(new Set())
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -541,6 +555,23 @@ defineExpose({ loadMore, hasMore })
   line-height: 1;
 }
 .clear-search:hover { color: white; }
+
+.sort-select {
+  margin-left: auto;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #3a3a5e;
+  background: #2a2a4e;
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
 
 @media (max-width: 600px) {
   .panel-header { flex-direction: column; align-items: stretch; }

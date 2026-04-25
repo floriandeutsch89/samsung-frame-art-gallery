@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sort Option for TV artworks
 - Download Option for TV artworks
 
+### Changed
+**Frontend**
+- Reframed are now sorted by name
+
 **Docker Architecture**
 - cleanup thumbnails every 30 days to prevent taking up disk space
 
