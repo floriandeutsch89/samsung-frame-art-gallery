@@ -22,11 +22,14 @@
           </label>
           <template v-if="slideshowEnabled">
             <select v-model.number="slideshowDuration" @change="updateSlideshow" :disabled="slideshowLoading" class="duration-select">
-              <option :value="5">5 min</option>
               <option :value="10">10 min</option>
-              <option :value="15">15 min</option>
               <option :value="30">30 min</option>
               <option :value="60">1 hr</option>
+              <option :value="360">6 hr</option>
+              <option :value="720">12 hr</option>
+              <option :value="1440">1 day</option>
+              <option :value="4320">3 days</option>
+              <option :value="10080">7 days</option>
             </select>
             <label class="toggle-label">
               <input
@@ -96,7 +99,7 @@ const deleting = ref(false)
 // Slideshow state
 const connected = ref(false)
 const slideshowEnabled = ref(false)
-const slideshowDuration = ref(15)
+const slideshowDuration = ref(10)
 const slideshowShuffle = ref(true)
 const slideshowLoading = ref(false)
 
@@ -135,7 +138,7 @@ const loadSlideshowStatus = async () => {
       // Parse the response - format varies by TV
       slideshowEnabled.value = data.value !== 'off' && data.value !== '0'
       if (data.duration) {
-        slideshowDuration.value = parseInt(data.duration) || 15
+        slideshowDuration.value = parseInt(data.duration) || 10
       }
       if (data.type !== undefined) {
         slideshowShuffle.value = data.type === true || data.type === 'shuffle'

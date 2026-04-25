@@ -3,6 +3,7 @@ import threading
 import time
 from typing import Optional
 from samsungtvws import SamsungTVWS
+from samsungtvws.exceptions import ResponseError
 
 from src.services.tv_thumbnail_cache import TVThumbnailCache
 from src.services.tv_settings import load_settings
@@ -217,30 +218,32 @@ class TVClient:
         """Get current slideshow status."""
         try:
             tv = self._get_tv()
-            return tv.art().get_slideshow_status()
+            art = tv.art()
+            try:
+                return art.get_slideshow_status()
+            except ResponseError:
+                return art.get_auto_rotation_status()
+        except ResponseError as e:
+            _LOGGER.debug(f"Slideshow status unavailable: {e}")
+            return {"error": str(e)}
         except Exception as e:
             _LOGGER.warning(f"Failed to get slideshow status: {e}")
             return {"error": str(e)}
 
-    def set_slideshow_status(self, enabled: bool, duration: int = 15, shuffle: bool = True) -> dict:
-        """Set slideshow status.
-
-        Args:
-            enabled: Whether slideshow is enabled
-            duration: Minutes between image changes (0 to disable)
-            shuffle: Random order (True) or sequential (False)
-        """
+    def set_slideshow_status(self, enabled: bool, duration: int = 10, shuffle: bool = True) -> dict:
+        """Set slideshow status."""
         try:
             tv = self._get_tv()
-            if not enabled:
-                return tv.art().set_slideshow_status(duration=0)
-            else:
-                # type=True means shuffle/random, type=False means sequential
-                return tv.art().set_slideshow_status(
-                    duration=duration,
-                    type=shuffle,
-                    category=2  # MY-C0002 = My Collection
-                )
+            art = tv.art()
+            kwargs = {"duration": 0} if not enabled else {
+                "duration": duration,
+                "type": shuffle,
+                "category": 2,
+            }
+            try:
+                return art.set_slideshow_status(**kwargs)
+            except ResponseError:
+                return art.set_auto_rotation_status(**kwargs)
         except Exception as e:
             _LOGGER.error(f"Failed to set slideshow status: {e}")
             return {"error": str(e)}
