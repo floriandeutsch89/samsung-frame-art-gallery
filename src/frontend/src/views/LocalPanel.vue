@@ -35,6 +35,7 @@
       @toggle="toggleSelection"
       @select-all="selectAll"
       @preview="(img) => $emit('preview', img, true)"
+      @delete="deleteImage"
     />
 
     <ActionBar>
@@ -319,6 +320,21 @@ const handleFileUpload = async (event) => {
   } finally {
     importing.value = false
     event.target.value = ''
+  }
+}
+
+const deleteImage = async (image) => {
+  if (!confirm(`Delete "${image.name}"?`)) return
+  try {
+    const res = await fetch(`/api/images/${encodeURIComponent(image.path)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.detail || 'Delete failed')
+    }
+    images.value = images.value.filter(i => i.path !== image.path)
+    selectedIds.value = new Set([...selectedIds.value].filter(p => p !== image.path))
+  } catch (e) {
+    alert(`Failed to delete: ${e.message}`)
   }
 }
 

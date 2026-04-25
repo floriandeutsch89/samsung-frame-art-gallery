@@ -139,6 +139,16 @@ async def upload_image(file: UploadFile = File(...), folder: str = Query("upload
     }
 
 
+@router.delete("/{path:path}")
+async def delete_image(path: str):
+    """Delete a local image file."""
+    image_path = get_safe_path(path)
+    if not is_valid_image(image_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    image_path.unlink()
+    return {"success": True, "path": path}
+
+
 @router.get("/{path:path}/thumbnail")
 async def get_thumbnail(path: str, size: int = 200):
     """Get thumbnail for an image. Size parameter controls max dimension (default 200, max 1200)."""

@@ -14,6 +14,12 @@
     <div class="checkbox" @click.stop="$emit('toggle')">
       <input type="checkbox" :checked="selected" />
     </div>
+    <button
+      v-if="isLocal"
+      class="delete-btn"
+      title="Delete image"
+      @click.stop="$emit('delete')"
+    >&#x2715;</button>
     <img
       v-if="isVisible && thumbnailUrl && !imgError"
       :src="thumbnailUrl"
@@ -45,7 +51,7 @@ const props = defineProps({
   isLocal: { type: Boolean, default: true }
 })
 
-const emit = defineEmits(['toggle', 'preview'])
+const emit = defineEmits(['toggle', 'preview', 'delete'])
 
 const cardRef = ref(null)
 const isVisible = ref(false)
@@ -241,6 +247,36 @@ img.loaded {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 70%;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ccc;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.image-card:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn:hover {
+  background: rgba(200, 50, 50, 0.85);
+  color: white;
 }
 
 .current-badge {
