@@ -5,6 +5,7 @@
 version: '3.8'
 
 services:
+
   caddy:
     image: caddy:2-alpine
     container_name: frame-caddy
@@ -22,9 +23,7 @@ services:
       - caddy-artgallery
     depends_on:
       - app
-
   app:
-    # Pull pre-built image from GHCR instead of building
     image: ghcr.io/floriandeutsch89/samsung-frame-art-gallery:latest
     container_name: frame-app
     networks:
@@ -32,19 +31,19 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ${IMAGES_DIR:-./images}:/images:ro
-      - ./data/thumbnails:/thumbnails
-      - ./data:/app/data
+      - ${IMAGES_DIR:-./images}:/images
+      - app_data:/app/data
     environment:
       - TV_IP=${TV_IP:-}
       - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
       - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
     restart: unless-stopped
 
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:
+
 networks:
   caddy-artgallery:
     driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:

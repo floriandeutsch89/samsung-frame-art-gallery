@@ -18,7 +18,6 @@ services:
       - caddy-artgallery
     depends_on:
       - app
-
   app:
     build:
       context: .
@@ -30,18 +29,18 @@ services:
       - "8080:8080"
     volumes:
       - ${IMAGES_DIR:-./images}:/images
-      - ./data/thumbnails:/thumbnails
-      - ./data:/app/data
+      - app_data:/app/data
     environment:
       - TV_IP=${TV_IP:-}
       - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
       - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
     restart: unless-stopped
 
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:
+
 networks:
   caddy-artgallery:
     driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
