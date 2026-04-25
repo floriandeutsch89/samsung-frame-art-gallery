@@ -69,6 +69,11 @@ Browse curated fine art filtered by color, collection, or artist and upload to y
 
 ![Reframed Gallery](screenshots/reframed-gallery.png)
 
+### Password Protection
+Optional single-password login page — set `APP_PASSWORD` in `.env` to enable.
+
+![Password Dialog](screenshots/password-dialog.png)
+
 ## Quick Start
 
 ### Prerequisites
