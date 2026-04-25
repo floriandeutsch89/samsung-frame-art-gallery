@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend** - Option to upload your own images via phone or browser
 - **Frontend** - Automatic HEIC conversion
 - **Frontend** - visual indication when uploading images
+- **Frontend** - Zoom option for re-framing images
 
 ### Changed
 - **Frontend** - Cap images to 4k resolution when uploading (TV can't handle any more)
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Frontend** - Preview Modal for Re-framing was resetting its position
 - **Frontend** - the TV_IP variable is now properly used to auto-connect to the TV
+- **Frontend** - Preview option was missing on mobile
 - **Frontend** - various performance issues
 
 ## [1.0.0] - 2026-04-24

@@ -7,6 +7,20 @@
         <button class="close-btn" @click="$emit('close')">&times;</button>
       </div>
 
+      <!-- Zoom slider for single-image reframe -->
+      <div v-if="reframeEnabled && selectedPaths.length === 1" class="zoom-bar">
+        <label>Zoom</label>
+        <input
+          type="range"
+          v-model.number="reframeZoom"
+          min="1"
+          max="5"
+          step="0.05"
+          @input="onZoomChange"
+        />
+        <span class="zoom-value">{{ reframeZoom.toFixed(1) }}×</span>
+      </div>
+
       <!-- Reframe info message for multiple images -->
       <div v-if="reframeEnabled && selectedPaths.length > 1" class="info-banner">
         Re-framing uses center crop for multiple images. Select a single image for manual positioning.
@@ -116,6 +130,7 @@ const imageNaturalWidth = ref(0)
 const imageNaturalHeight = ref(0)
 const offsetX = ref(0.5)
 const offsetY = ref(0.5)
+const reframeZoom = ref(1.0)
 const isDragging = ref(false)
 const dragStartX = ref(0)
 const dragStartY = ref(0)
@@ -167,18 +182,19 @@ const cropWindowStyle = computed(() => {
     imgDisplayWidth = CANVAS_HEIGHT * imgRatio
   }
 
-  // Calculate crop window size based on image aspect ratio
-  let cropWidth, cropHeight
-
+  // Base crop window at zoom 1.0
+  let baseCropWidth, baseCropHeight
   if (imgRatio > TARGET_RATIO) {
-    // Image wider than 16:9 - crop window height = image height, width = height * 16/9
-    cropHeight = imgDisplayHeight
-    cropWidth = cropHeight * TARGET_RATIO
+    baseCropHeight = imgDisplayHeight
+    baseCropWidth = baseCropHeight * TARGET_RATIO
   } else {
-    // Image taller than 16:9 - crop window width = image width, height = width / 16*9
-    cropWidth = imgDisplayWidth
-    cropHeight = cropWidth / TARGET_RATIO
+    baseCropWidth = imgDisplayWidth
+    baseCropHeight = baseCropWidth / TARGET_RATIO
   }
+
+  // Shrink crop window by zoom (mirrors backend)
+  const cropWidth = baseCropWidth / reframeZoom.value
+  const cropHeight = baseCropHeight / reframeZoom.value
 
   // Calculate max offset for crop window positioning
   const maxOffsetX = imgDisplayWidth - cropWidth
@@ -281,15 +297,17 @@ const onDrag = (e) => {
     imgDisplayWidth = CANVAS_HEIGHT * imgRatio
   }
 
-  // Get crop window dimensions
-  let cropWidth, cropHeight
+  // Base crop dimensions at zoom 1.0, then shrink by zoom
+  let baseCropWidth, baseCropHeight
   if (imgRatio > TARGET_RATIO) {
-    cropHeight = imgDisplayHeight
-    cropWidth = cropHeight * TARGET_RATIO
+    baseCropHeight = imgDisplayHeight
+    baseCropWidth = baseCropHeight * TARGET_RATIO
   } else {
-    cropWidth = imgDisplayWidth
-    cropHeight = cropWidth / TARGET_RATIO
+    baseCropWidth = imgDisplayWidth
+    baseCropHeight = baseCropWidth / TARGET_RATIO
   }
+  const cropWidth = baseCropWidth / reframeZoom.value
+  const cropHeight = baseCropHeight / reframeZoom.value
 
   // Calculate max offset (how far crop window can move)
   const maxOffsetX = imgDisplayWidth - cropWidth
@@ -316,7 +334,7 @@ const stopDrag = () => {
 
   // Emit offset change to parent
   if (props.selectedPaths.length === 1) {
-    emit('offset-change', props.selectedPaths[0], offsetX.value, offsetY.value)
+    emit('offset-change', props.selectedPaths[0], offsetX.value, offsetY.value, reframeZoom.value)
   }
 }
 
@@ -327,9 +345,16 @@ const loadOriginalImage = async () => {
   const path = props.selectedPaths[0]
   originalImageUrl.value = `/api/images/${encodeURIComponent(path)}/thumbnail?size=1200`
 
-  // Reset offset to center
+  // Reset offset and zoom
   offsetX.value = 0.5
   offsetY.value = 0.5
+  reframeZoom.value = 1.0
+}
+
+const onZoomChange = () => {
+  if (props.selectedPaths.length === 1) {
+    emit('offset-change', props.selectedPaths[0], offsetX.value, offsetY.value, reframeZoom.value)
+  }
 }
 
 watch(() => [props.reframeEnabled, props.selectedPaths], loadOriginalImage, { immediate: true })
@@ -517,6 +542,33 @@ onUnmounted(() => {
 }
 
 /* Reframe mode styles */
+.zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1.5rem;
+  background: #12121f;
+  border-bottom: 1px solid #2a2a4e;
+}
+
+.zoom-bar label {
+  font-size: 0.85rem;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.zoom-bar input[type="range"] {
+  flex: 1;
+  accent-color: #4a90d9;
+}
+
+.zoom-value {
+  font-size: 0.85rem;
+  color: #ccc;
+  width: 2.5rem;
+  text-align: right;
+}
+
 .info-banner {
   background: #2a3a5e;
   color: #8ab4f8;

@@ -23,10 +23,11 @@ class PreviewCache:
         matte_percent: int,
         reframe_enabled: bool = False,
         reframe_offset_x: float = 0.5,
-        reframe_offset_y: float = 0.5
+        reframe_offset_y: float = 0.5,
+        reframe_zoom: float = 1.0,
     ) -> str:
         """Generate cache key from identifier and processing parameters."""
-        key_string = f"{identifier}|crop={crop_percent}|matte={matte_percent}|reframe={reframe_enabled}|ox={reframe_offset_x:.2f}|oy={reframe_offset_y:.2f}"
+        key_string = f"{identifier}|crop={crop_percent}|matte={matte_percent}|reframe={reframe_enabled}|ox={reframe_offset_x:.2f}|oy={reframe_offset_y:.2f}|zoom={reframe_zoom:.2f}"
         return hashlib.md5(key_string.encode()).hexdigest()
 
     def _original_path(self, cache_key: str) -> Path:
@@ -42,7 +43,8 @@ class PreviewCache:
         matte_percent: int,
         reframe_enabled: bool = False,
         reframe_offset_x: float = 0.5,
-        reframe_offset_y: float = 0.5
+        reframe_offset_y: float = 0.5,
+        reframe_zoom: float = 1.0,
     ) -> Optional[tuple[bytes, bytes]]:
         """
         Get cached preview if available.
@@ -60,7 +62,7 @@ class PreviewCache:
         """
         cache_key = self._cache_key(
             identifier, crop_percent, matte_percent,
-            reframe_enabled, reframe_offset_x, reframe_offset_y
+            reframe_enabled, reframe_offset_x, reframe_offset_y, reframe_zoom,
         )
         orig_path = self._original_path(cache_key)
         proc_path = self._processed_path(cache_key)
@@ -80,7 +82,8 @@ class PreviewCache:
         processed: bytes,
         reframe_enabled: bool = False,
         reframe_offset_x: float = 0.5,
-        reframe_offset_y: float = 0.5
+        reframe_offset_y: float = 0.5,
+        reframe_zoom: float = 1.0,
     ) -> None:
         """
         Store preview in cache.
@@ -97,7 +100,7 @@ class PreviewCache:
         """
         cache_key = self._cache_key(
             identifier, crop_percent, matte_percent,
-            reframe_enabled, reframe_offset_x, reframe_offset_y
+            reframe_enabled, reframe_offset_x, reframe_offset_y, reframe_zoom,
         )
         orig_path = self._original_path(cache_key)
         proc_path = self._processed_path(cache_key)

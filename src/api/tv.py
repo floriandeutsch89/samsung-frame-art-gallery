@@ -226,11 +226,12 @@ async def preview_processed(request: PreviewRequest):
             offset = request.reframe_offsets.get(path, {"x": 0.5, "y": 0.5})
             offset_x = offset.get("x", 0.5)
             offset_y = offset.get("y", 0.5)
+            offset_zoom = float(offset.get("zoom", 1.0))
 
             # Check cache first
             cached = cache.get(
                 path, request.crop_percent, request.matte_percent,
-                request.reframe_enabled, offset_x, offset_y
+                request.reframe_enabled, offset_x, offset_y, offset_zoom,
             )
             if cached:
                 original, processed = cached
@@ -249,14 +250,15 @@ async def preview_processed(request: PreviewRequest):
                 request.matte_percent,
                 request.reframe_enabled,
                 offset_x,
-                offset_y
+                offset_y,
+                offset_zoom,
             )
 
             # Store in cache
             cache.set(
                 path, request.crop_percent, request.matte_percent,
                 original, processed,
-                request.reframe_enabled, offset_x, offset_y
+                request.reframe_enabled, offset_x, offset_y, offset_zoom,
             )
 
             return {
@@ -291,6 +293,7 @@ async def _process_image(path: str, request: UploadRequest) -> dict:
             request.reframe_enabled,
             float(offset.get("x", 0.5)),
             float(offset.get("y", 0.5)),
+            float(offset.get("zoom", 1.0)),
         )
         return {"path": path, "processed_data": processed_data}
     except Exception as e:

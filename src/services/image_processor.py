@@ -15,7 +15,8 @@ def process_for_tv(
     matte_percent: int = None,
     reframe_enabled: bool = False,
     reframe_offset_x: float = 0.5,
-    reframe_offset_y: float = 0.5
+    reframe_offset_y: float = 0.5,
+    reframe_zoom: float = 1.0,
 ) -> bytes:
     """
     Process image for TV display:
@@ -52,7 +53,7 @@ def process_for_tv(
 
     if reframe_enabled:
         # Reframe mode: fill 16:9 completely
-        img = _reframe_image(img, reframe_offset_x, reframe_offset_y)
+        img = _reframe_image(img, reframe_offset_x, reframe_offset_y, reframe_zoom)
     else:
         # Standard mode: crop then matte
         if crop_percent > 0:
@@ -83,45 +84,46 @@ def _crop_image(img: Image.Image, crop_percent: int) -> Image.Image:
     return img.crop((left, top, right, bottom))
 
 
-def _reframe_image(img: Image.Image, offset_x: float = 0.5, offset_y: float = 0.5) -> Image.Image:
+def _reframe_image(
+    img: Image.Image,
+    offset_x: float = 0.5,
+    offset_y: float = 0.5,
+    zoom: float = 1.0,
+) -> Image.Image:
     """
     Scale and crop image to fill 16:9 frame exactly.
 
-    Args:
-        img: Source image
-        offset_x: Horizontal position 0.0 (left) to 1.0 (right), 0.5 = center
-        offset_y: Vertical position 0.0 (top) to 1.0 (bottom), 0.5 = center
-
-    Returns:
-        Image cropped to exact 16:9 aspect ratio
+    zoom > 1.0 crops a proportionally smaller area (zooms in), enabling full
+    X+Y freedom regardless of the image's own aspect ratio.
     """
-    # Clamp offsets to valid range
     offset_x = max(0.0, min(1.0, offset_x))
     offset_y = max(0.0, min(1.0, offset_y))
+    zoom = max(1.0, min(10.0, zoom))
 
     w, h = img.size
     current_ratio = w / h
 
-    # Handle edge case: image already exactly 16:9
-    if abs(current_ratio - TARGET_RATIO) < 0.001:
-        return img
-
+    # Base crop dimensions at zoom 1.0 (minimum crop to fill 16:9)
     if current_ratio > TARGET_RATIO:
-        # Image is wider than 16:9 - crop sides
-        new_w = int(h * TARGET_RATIO)
-        new_h = h
-        max_offset = w - new_w
-        left = int(max_offset * offset_x)
-        top = 0
+        base_crop_w = int(h * TARGET_RATIO)
+        base_crop_h = h
     else:
-        # Image is taller than 16:9 - crop top/bottom
-        new_w = w
-        new_h = int(w / TARGET_RATIO)
-        max_offset = h - new_h
-        left = 0
-        top = int(max_offset * offset_y)
+        base_crop_w = w
+        base_crop_h = int(w / TARGET_RATIO)
 
-    return img.crop((left, top, left + new_w, top + new_h))
+    # Shrink crop area by zoom factor so the result fills 16:9 after upscaling
+    crop_w = max(1, int(base_crop_w / zoom))
+    crop_h = max(1, int(base_crop_h / zoom))
+
+    # Clamp to image bounds
+    crop_w = min(crop_w, w)
+    crop_h = min(crop_h, h)
+
+    # Position crop within image using offsets
+    left = int((w - crop_w) * offset_x)
+    top = int((h - crop_h) * offset_y)
+
+    return img.crop((left, top, left + crop_w, top + crop_h))
 
 
 def _add_matte(img: Image.Image, matte_percent: int) -> Image.Image:
@@ -166,7 +168,8 @@ def generate_preview(
     matte_percent: int = None,
     reframe_enabled: bool = False,
     reframe_offset_x: float = 0.5,
-    reframe_offset_y: float = 0.5
+    reframe_offset_y: float = 0.5,
+    reframe_zoom: float = 1.0,
 ) -> tuple[bytes, bytes]:
     """
     Generate preview images for comparison.
@@ -186,7 +189,7 @@ def generate_preview(
     # Processed thumbnail
     processed_full = process_for_tv(
         image_data, crop_percent, matte_percent,
-        reframe_enabled, reframe_offset_x, reframe_offset_y
+        reframe_enabled, reframe_offset_x, reframe_offset_y, reframe_zoom
     )
     processed = Image.open(io.BytesIO(processed_full))
     processed.thumbnail((400, 400), Image.Resampling.LANCZOS)

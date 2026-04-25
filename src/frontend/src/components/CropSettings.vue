@@ -41,21 +41,13 @@
       />
       <span class="unit">%</span>
     </div>
-    <button
-      class="preview-btn"
-      @click="$emit('preview')"
-      :disabled="!hasSelection"
-      title="Preview how the image will look after processing"
-    >
-      Preview
-    </button>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 
-const emit = defineEmits(['change', 'preview'])
+const emit = defineEmits(['change'])
 const props = defineProps({
   hasSelection: {
     type: Boolean,
@@ -165,23 +157,4 @@ onMounted(async () => {
   color: #aaa;
 }
 
-.preview-btn {
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  border: 1px solid #3a3a5e;
-  background: #3a3a5e;
-  color: white;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background 0.2s;
-}
-
-.preview-btn:hover:not(:disabled) {
-  background: #4a4a6e;
-}
-
-.preview-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 </style>

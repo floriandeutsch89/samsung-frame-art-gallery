@@ -57,9 +57,15 @@
           v-else
           :has-selection="selectedIds.size > 0"
           @change="setSettings"
-          @preview="loadPreviews"
         />
       </template>
+      <button
+        class="secondary"
+        :disabled="selectedIds.size === 0"
+        @click="loadPreviews"
+      >
+        Preview
+      </button>
       <button
         class="secondary"
         :disabled="selectedIds.size === 0"
@@ -235,11 +241,11 @@ const loadPreviews = async () => {
   }
 }
 
-const fetchPreviewWithOffset = async (path, offsetX, offsetY) => {
-  // Update stored offset
+const fetchPreviewWithOffset = async (path, offsetX, offsetY, zoom = 1.0) => {
+  // Update stored offset + zoom
   reframeOffsets.value = {
     ...reframeOffsets.value,
-    [path]: { x: offsetX, y: offsetY }
+    [path]: { x: offsetX, y: offsetY, zoom }
   }
 
   try {
@@ -251,7 +257,7 @@ const fetchPreviewWithOffset = async (path, offsetX, offsetY) => {
         crop_percent: cropPercent.value,
         matte_percent: mattePercent.value,
         reframe_enabled: true,
-        reframe_offsets: { [path]: { x: offsetX, y: offsetY } }
+        reframe_offsets: { [path]: { x: offsetX, y: offsetY, zoom } }
       })
     })
     const data = await res.json()
