@@ -43,7 +43,6 @@
             :is-local="isLocal"
             @toggle="$emit('toggle', item)"
             @preview="$emit('preview', item)"
-            @delete="$emit('delete', item)"
           />
         </template>
       </MasonryWall>
@@ -75,7 +74,7 @@ const props = defineProps({
   totalCount: { type: Number, default: null }
 })
 
-const emit = defineEmits(['toggle', 'select-all', 'preview', 'delete', 'load-more'])
+const emit = defineEmits(['toggle', 'select-all', 'preview', 'load-more'])
 
 const gridRef = ref(null)
 const sentinelRef = ref(null)

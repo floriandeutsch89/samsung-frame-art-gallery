@@ -35,7 +35,6 @@
       @toggle="toggleSelection"
       @select-all="selectAll"
       @preview="(img) => $emit('preview', img, true)"
-      @delete="deleteImage"
     />
 
     <ActionBar>
@@ -72,6 +71,13 @@
         @click="showCollectionPicker = true"
       >
         + Collection
+      </button>
+      <button
+        class="danger"
+        :disabled="selectedIds.size === 0 || uploading"
+        @click="deleteSelected"
+      >
+        Delete ({{ selectedIds.size }})
       </button>
       <button
         class="secondary"
@@ -329,18 +335,22 @@ const handleFileUpload = async (event) => {
   }
 }
 
-const deleteImage = async (image) => {
-  if (!confirm(`Delete "${image.name}"?`)) return
-  try {
-    const res = await fetch(`/api/images/${encodeURIComponent(image.path)}`, { method: 'DELETE' })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.detail || 'Delete failed')
+const deleteSelected = async () => {
+  const count = selectedIds.value.size
+  if (!confirm(`Delete ${count} image${count !== 1 ? 's' : ''}? This cannot be undone.`)) return
+  const paths = Array.from(selectedIds.value)
+  for (const path of paths) {
+    try {
+      const res = await fetch(`/api/images/${encodeURIComponent(path)}`, { method: 'DELETE' })
+      if (res.ok) {
+        images.value = images.value.filter(i => i.path !== path)
+        const newSet = new Set(selectedIds.value)
+        newSet.delete(path)
+        selectedIds.value = newSet
+      }
+    } catch (e) {
+      console.error(`Failed to delete ${path}:`, e)
     }
-    images.value = images.value.filter(i => i.path !== image.path)
-    selectedIds.value = new Set([...selectedIds.value].filter(p => p !== image.path))
-  } catch (e) {
-    alert(`Failed to delete: ${e.message}`)
   }
 }
 
@@ -495,5 +505,24 @@ onMounted(() => {
   background: #4a90d9;
   border-radius: 2px;
   transition: width 0.3s ease;
+}
+
+.danger {
+  background: transparent;
+  border: 1px solid #c0392b;
+  color: #e07070;
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.danger:hover:not(:disabled) {
+  background: #c0392b;
+  color: white;
+}
+.danger:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 </style>

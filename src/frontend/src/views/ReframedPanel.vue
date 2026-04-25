@@ -308,11 +308,17 @@ const setMode = (newMode) => {
   }
 }
 
-// When search narrows the list, keep the first visible item selected
-watch(filteredSecondaryList, (list) => {
-  if (list.length > 0 && !list.find(i => i.slug === secondarySlug.value)) {
-    secondarySlug.value = list[0].slug
-  }
+// When search changes, auto-select the first match and load it
+let searchDebounce = null
+watch(searchFilter, () => {
+  clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    const list = filteredSecondaryList.value
+    if (list.length > 0) {
+      secondarySlug.value = list[0].slug
+      loadArtwork()
+    }
+  }, 400)
 })
 
 const onSecondaryChange = () => {

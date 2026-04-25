@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend** - Support for more image file types (.png, .webp, .tiff)
 - **Frontend** - Password option via `APP_PASSWORD` variable
 - **Frontend** - Added Reframed as image source (URL scraping)
+- **Frontend** - Added option to delete all selected local images
 
 ### Fixed
 - **Samsung-Integration** - API calls for older frame models
