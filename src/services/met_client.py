@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 MET_API_BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
 MET_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DIMENSIONS_CACHE_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/thumbnails")) / "met_dims"
+DIMENSIONS_CACHE_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/app/data/thumbnails" if Path("/.dockerenv").exists() else "data/thumbnails")) / "met_dims"
 
 
 @dataclass

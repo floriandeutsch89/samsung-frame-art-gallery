@@ -5,6 +5,7 @@ from typing import Optional
 from pathlib import Path
 import os
 import asyncio
+import json
 import time
 import base64
 
@@ -84,11 +85,13 @@ async def get_config():
 async def get_tv_settings():
     """Get current TV settings."""
     settings = load_settings()
+    env_ip = os.environ.get("TV_IP", "").strip() or None
     return {
         "selected_tv_ip": settings.selected_tv_ip,
         "selected_tv_name": settings.selected_tv_name,
         "manual_entry": settings.manual_entry,
-        "configured": settings.configured
+        "configured": settings.configured,
+        "env_ip": env_ip,
     }
 
 
@@ -272,58 +275,116 @@ async def preview_processed(request: PreviewRequest):
     return {"previews": previews}
 
 
+async def _process_image(path: str, request: UploadRequest) -> dict:
+    """Read and process one image for TV upload."""
+    try:
+        image_path = get_safe_path(path)
+        if not image_path.exists():
+            return {"path": path, "success": False, "error": "File not found"}
+        offset = request.reframe_offsets.get(path, {"x": 0.5, "y": 0.5})
+        image_data = image_path.read_bytes()
+        processed_data = await asyncio.to_thread(
+            process_for_tv,
+            image_data,
+            request.crop_percent,
+            request.matte_percent,
+            request.reframe_enabled,
+            float(offset.get("x", 0.5)),
+            float(offset.get("y", 0.5)),
+        )
+        return {"path": path, "processed_data": processed_data}
+    except Exception as e:
+        return {"path": path, "success": False, "error": str(e)}
+
+
 @router.post("/upload")
 async def upload_artwork(request: UploadRequest):
     client = require_tv_client()
 
-    async def read_and_process(path: str):
-        """Read and process image in parallel, return processed data and metadata."""
-        try:
-            image_path = get_safe_path(path)
-            if not image_path.exists():
-                return {"path": path, "success": False, "error": "File not found"}
+    processed_items = await asyncio.gather(*[_process_image(p, request) for p in request.paths])
 
-            # Get reframe offset for this path (default center)
-            offset = request.reframe_offsets.get(path, {"x": 0.5, "y": 0.5})
-            offset_x = offset.get("x", 0.5)
-            offset_y = offset.get("y", 0.5)
-
-            image_data = image_path.read_bytes()
-            processed_data = await asyncio.to_thread(
-                process_for_tv,
-                image_data,
-                request.crop_percent,
-                request.matte_percent,
-                request.reframe_enabled,
-                offset_x,
-                offset_y
-            )
-
-            return {"path": path, "processed_data": processed_data}
-        except Exception as e:
-            return {"path": path, "success": False, "error": str(e)}
-
-    # Process all images in parallel
-    processed_items = await asyncio.gather(*[read_and_process(p) for p in request.paths])
-
-    # Separate failed items from those ready to upload
     failed = [item for item in processed_items if "success" in item and not item["success"]]
     to_upload = [item for item in processed_items if "processed_data" in item]
 
     upload_results = []
     if to_upload:
-        # Build (image_data, display_this) pairs; only display on the last image
         last_idx = len(to_upload) - 1
         batch = [
             (item["processed_data"], request.display and i == last_idx)
             for i, item in enumerate(to_upload)
         ]
-        # One WebSocket session for the whole batch — avoids per-image handshake overhead
         batch_results = await asyncio.to_thread(client.upload_artwork_batch, batch)
         for item, result in zip(to_upload, batch_results):
             upload_results.append({"path": item["path"], **result})
 
     return {"results": failed + upload_results}
+
+
+@router.post("/upload/stream")
+async def upload_artwork_stream(request: UploadRequest):
+    """Upload artwork with SSE progress events."""
+    from fastapi.responses import StreamingResponse as SR
+    client = require_tv_client()
+
+    async def generate():
+        def sse(data: dict) -> str:
+            return f"data: {json.dumps(data)}\n\n"
+
+        yield sse({"type": "processing", "total": len(request.paths)})
+
+        processed_items = await asyncio.gather(*[_process_image(p, request) for p in request.paths])
+        failed = [i for i in processed_items if "success" in i and not i["success"]]
+        to_upload = [i for i in processed_items if "processed_data" in i]
+
+        if not to_upload:
+            yield sse({"type": "done", "results": failed})
+            return
+
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def run_uploads():
+            results = list(failed)
+            last_idx = len(to_upload) - 1
+            try:
+                tv = client._get_tv()
+                with tv.art() as art:
+                    for idx, item in enumerate(to_upload):
+                        loop.call_soon_threadsafe(queue.put_nowait, {
+                            "type": "uploading",
+                            "current": idx + 1,
+                            "total": len(to_upload),
+                            "name": Path(item["path"]).name,
+                        })
+                        try:
+                            content_id = art.upload(
+                                item["processed_data"],
+                                file_type="jpg", matte="none", portrait_matte="none",
+                            )
+                            if request.display and idx == last_idx and content_id:
+                                art.select_image(content_id)
+                            results.append({"path": item["path"], "success": True, "content_id": content_id})
+                        except Exception as e:
+                            results.append({"path": item["path"], "success": False, "error": str(e)})
+            except Exception as e:
+                results.append({"path": "batch", "success": False, "error": str(e)})
+            loop.call_soon_threadsafe(queue.put_nowait, {"type": "done", "results": results})
+
+        upload_future = loop.run_in_executor(None, run_uploads)
+
+        while True:
+            event = await queue.get()
+            yield sse(event)
+            if event["type"] == "done":
+                break
+
+        await upload_future
+
+    return SR(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/slideshow")

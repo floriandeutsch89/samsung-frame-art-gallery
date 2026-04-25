@@ -7,7 +7,7 @@ from typing import Optional
 
 _LOGGER = logging.getLogger(__name__)
 
-CACHE_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/thumbnails")) / "previews"
+CACHE_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/app/data/thumbnails" if Path("/.dockerenv").exists() else "data/thumbnails")) / "previews"
 
 
 class PreviewCache:

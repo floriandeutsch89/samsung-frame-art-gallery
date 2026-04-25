@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 
@@ -22,15 +23,20 @@ async def lifespan(app: FastAPI):
     executor = ThreadPoolExecutor(max_workers=1)
     executor.submit(initialize_thumbnails)
 
-    # Initialize TV client from saved settings
+    # Initialize TV client: saved settings take precedence, TV_IP env var is the bootstrap fallback
     try:
         tv_client = TVClient.initialize_from_settings()
         if tv_client:
-            logger.info(f"TV client initialized for {tv_client.ip}")
+            logger.info(f"TV client initialized from saved settings: {tv_client.ip}")
         else:
-            logger.info("No TV configured, user will need to connect via UI")
+            env_ip = os.environ.get("TV_IP", "").strip()
+            if env_ip:
+                logger.info(f"No saved settings found — using TV_IP env var: {env_ip}")
+                TVClient.configure(env_ip)
+            else:
+                logger.info("No TV configured, user will need to connect via UI")
     except Exception as e:
-        logger.warning(f"Failed to initialize TV client from settings: {e}")
+        logger.warning(f"Failed to initialize TV client: {e}")
         logger.info("TV will need to be configured via the connection modal")
 
     yield

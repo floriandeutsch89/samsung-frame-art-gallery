@@ -175,7 +175,14 @@ const connectManual = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/tv/settings')
+    const data = await res.json()
+    if (data.env_ip) {
+      manualIp.value = data.env_ip
+    }
+  } catch {}
   scan()
 })
 </script>

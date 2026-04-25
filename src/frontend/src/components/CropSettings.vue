@@ -67,7 +67,7 @@ const props = defineProps({
   }
 })
 
-const reframeValue = ref(false)
+const reframeValue = ref(true)
 const cropValue = ref(0)
 const matteValue = ref(10)
 
