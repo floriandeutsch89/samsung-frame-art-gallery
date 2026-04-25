@@ -8,13 +8,13 @@ from typing import Optional, Set
 _LOGGER = logging.getLogger(__name__)
 
 # Use persistent storage alongside local image thumbnails
-THUMBNAILS_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/thumbnails"))
+THUMBNAILS_DIR = Path(os.environ.get("THUMBNAILS_DIR", "/app/data/thumbnails" if Path("/.dockerenv").exists() else "data/thumbnails"))
 CACHE_DIR = THUMBNAILS_DIR / "tv"
 
 
 class TVThumbnailCache:
     def __init__(self):
-        CACHE_DIR.mkdir(exist_ok=True)
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     def _cache_path(self, content_id: str) -> Path:
         # Sanitize content_id for safe filename

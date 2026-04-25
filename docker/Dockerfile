@@ -2,26 +2,31 @@
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY src/frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY src/frontend/ ./
 RUN npm run build
 
-# Stage 2: Python runtime
+# Stage 2: Install Python dependencies (git needed for samsung-tv-ws-api)
+FROM python:3.13-slim AS python-deps
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN uv venv /opt/venv && \
+    uv pip install --python /opt/venv --no-cache-dir --requirement requirements.txt
+
+# Stage 3: Runtime — no build tools, no git
 FROM python:3.13-slim
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# Install git and uv
-RUN apt-get update && apt-get install -y --no-install-recommends git curl && rm -rf /var/lib/apt/lists/* && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+COPY --from=python-deps /opt/venv /opt/venv
 
-# Create non-root user
 RUN useradd -m -u 1000 appuser && \
-    mkdir -p /thumbnails /app/data && \
-    chown -R appuser:appuser /app /thumbnails /app/data
-
-COPY pyproject.toml requirements.txt ./
-RUN /root/.local/bin/uv pip install --system --no-cache-dir --requirement requirements.txt
+    mkdir -p /app/data /images && \
+    chown -R appuser:appuser /app /app/data /images
 
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser --from=frontend /app/dist ./static/
