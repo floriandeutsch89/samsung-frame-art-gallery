@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend** - Password option via `APP_PASSWORD` variable
 - **Frontend** - Added Reframed as image source (URL scraping)
 - **Frontend** - Added option to delete all selected local images
+- **Frontend** - Added option to hide Metropolitan Museum of Art Gallery (Reframed should be default)
 
 ### Fixed
 - **Samsung-Integration** - API calls for older frame models

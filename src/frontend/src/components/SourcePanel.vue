@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import LocalPanel from '../views/LocalPanel.vue'
 import MetPanel from '../views/MetPanel.vue'
 import ReframedPanel from '../views/ReframedPanel.vue'
@@ -48,13 +48,18 @@ import CollectionsPanel from '../views/CollectionsPanel.vue'
 defineEmits(['uploaded', 'preview'])
 
 const collectionsPanel = ref(null)
+const metEnabled = ref(true)
 
-const tabs = [
+const allTabs = [
   { id: 'local', label: 'Local Images' },
   { id: 'met', label: 'Metropolitan Museum of Art' },
   { id: 'reframed', label: 'Reframed Gallery' },
   { id: 'collections', label: 'Collections' }
 ]
+
+const tabs = computed(() =>
+  metEnabled.value ? allTabs : allTabs.filter(t => t.id !== 'met')
+)
 
 // Read tab from URL if specified
 const getUrlTab = () => {
@@ -62,21 +67,29 @@ const getUrlTab = () => {
   return params.get('tab')
 }
 
-// Start with 'local', will switch to 'met' if no local images
+// Start with 'local', will switch to first external source if no local images
 const activeTab = ref(getUrlTab() || 'local')
 
-// Check for local images and switch to Met if none exist
+// Fetch config and check for local images on mount
 onMounted(async () => {
+  try {
+    const res = await fetch('/api/tv/config')
+    const config = await res.json()
+    metEnabled.value = config.met_enabled !== false
+  } catch (e) {
+    // keep met visible if config fetch fails
+  }
+
   // Only auto-switch if no tab specified in URL
   if (!getUrlTab()) {
     try {
       const res = await fetch('/api/images')
       const data = await res.json()
       if (!data.images || data.images.length === 0) {
-        activeTab.value = 'met'
+        activeTab.value = metEnabled.value ? 'met' : 'reframed'
       }
     } catch (e) {
-      // If fetch fails, stay on local tab
+      // stay on local tab
     }
   }
 })

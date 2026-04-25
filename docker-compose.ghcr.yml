@@ -38,6 +38,7 @@ services:
       - TV_IP=${TV_IP:-}
       - DEFAULT_CROP_PERCENT=${DEFAULT_CROP_PERCENT:-5}
       - DEFAULT_MATTE_PERCENT=${DEFAULT_MATTE_PERCENT:-10}
+      - DISABLE_MET_GALLERY=${DISABLE_MET_GALLERY:-1}
     restart: unless-stopped
 
 volumes:

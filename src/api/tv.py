@@ -70,6 +70,7 @@ class SlideshowRequest(BaseModel):
 
 
 DEFAULT_MATTE_PERCENT = int(os.environ.get("DEFAULT_MATTE_PERCENT", "10"))
+MET_ENABLED = os.environ.get("DISABLE_MET_GALLERY", "").strip().lower() not in ("1", "true", "yes")
 
 
 @router.get("/config")
@@ -77,7 +78,8 @@ async def get_config():
     """Get app configuration including defaults."""
     return {
         "default_crop_percent": DEFAULT_CROP_PERCENT,
-        "default_matte_percent": DEFAULT_MATTE_PERCENT
+        "default_matte_percent": DEFAULT_MATTE_PERCENT,
+        "met_enabled": MET_ENABLED,
     }
 
 
