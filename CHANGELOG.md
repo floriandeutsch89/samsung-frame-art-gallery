@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zoom option for re-framing images
 - Support for more image file types (.png, .webp, .tiff)
 - Password option via `APP_PASSWORD` variable
-- Added Reframed as image source (URL scraping)
-- Added option to delete all selected local images
-- Added hover effect on images
-- Added option to hide Metropolitan Museum of Art Gallery (Reframed should be default)
+- Reframed as image source (URL scraping)
+- option to delete all selected local images
+- hover effect on images
+- hover effect on images
+- option to hide Metropolitan Museum of Art Gallery (Reframed should be default)
+- Filenames for TV artworks (mapping table)
+- Sort Option for TV artworks
+- Download Option for TV artworks
 
 **Docker Architecture**
 - cleanup thumbnails every 30 days to prevent taking up disk space

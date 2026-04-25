@@ -14,6 +14,7 @@ from src.services.tv_settings import load_settings, save_settings, TVSettings
 from src.services.tv_discovery import discover_tvs
 from src.services.image_processor import process_for_tv, generate_preview
 from src.services.preview_cache import get_preview_cache
+from src.services.tv_content_names import save_name, delete_name, get_all_names
 
 router = APIRouter()
 
@@ -157,13 +158,16 @@ async def list_artwork():
     client = require_tv_client()
     try:
         artwork = await asyncio.to_thread(client.get_artwork_list)
-        # Add default dimensions (TV API doesn't provide them)
-        # Using 16:9 as default since TV displays in that ratio
+        names = get_all_names()
         for item in artwork:
             if "width" not in item:
                 item["width"] = 1920
             if "height" not in item:
                 item["height"] = 1080
+            content_id = item.get("content_id", "")
+            entry = names.get(content_id, {})
+            item["title"] = entry.get("title", "") if isinstance(entry, dict) else ""
+            item["created_at"] = entry.get("created_at") if isinstance(entry, dict) else None
         return {"artwork": artwork, "count": len(artwork)}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -193,6 +197,7 @@ async def delete_artwork(content_id: str):
     client = require_tv_client()
     try:
         await asyncio.to_thread(client.delete_artwork, content_id)
+        delete_name(content_id)
         return {"success": True, "deleted": content_id}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -203,13 +208,35 @@ async def get_artwork_thumbnail(content_id: str):
     """Get thumbnail for TV artwork. May timeout for built-in Samsung content."""
     client = require_tv_client()
     try:
-        # Run blocking TV call in thread pool to not block event loop
         thumbnail_data = await asyncio.to_thread(client.get_thumbnail, content_id)
         if not thumbnail_data:
             raise HTTPException(status_code=404, detail="Thumbnail not found")
         return Response(content=thumbnail_data, media_type="image/jpeg")
     except Exception as e:
-        # Thumbnail retrieval often times out for built-in Samsung content
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/artwork/{content_id}/download")
+async def download_artwork(content_id: str):
+    """Download TV artwork as a JPEG file."""
+    client = require_tv_client()
+    try:
+        image_data = await asyncio.to_thread(client.get_thumbnail, content_id)
+        if not image_data:
+            raise HTTPException(status_code=404, detail="Artwork not found")
+        names = get_all_names()
+        entry = names.get(content_id, {})
+        title = entry.get("title", "") if isinstance(entry, dict) else ""
+        safe_name = "".join(c for c in (title or content_id) if c.isalnum() or c in " -_") .strip() or content_id
+        filename = f"{safe_name}.jpg"
+        return Response(
+            content=image_data,
+            media_type="image/jpeg",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
 
@@ -320,6 +347,8 @@ async def upload_artwork(request: UploadRequest):
         ]
         batch_results = await asyncio.to_thread(client.upload_artwork_batch, batch)
         for item, result in zip(to_upload, batch_results):
+            if result.get("success") and result.get("content_id"):
+                save_name(result["content_id"], Path(item["path"]).stem)
             upload_results.append({"path": item["path"], **result})
 
     return {"results": failed + upload_results}
@@ -368,6 +397,8 @@ async def upload_artwork_stream(request: UploadRequest):
                             )
                             if request.display and idx == last_idx and content_id:
                                 art.select_image(content_id)
+                            if content_id:
+                                save_name(content_id, Path(item["path"]).stem)
                             results.append({"path": item["path"], "success": True, "content_id": content_id})
                         except Exception as e:
                             results.append({"path": item["path"], "success": False, "error": str(e)})

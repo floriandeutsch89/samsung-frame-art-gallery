@@ -43,14 +43,21 @@
           </template>
         </div>
       </div>
-      <button class="refresh-btn" @click="loadArtwork" :disabled="loading">
-        Refresh
-      </button>
+      <div class="header-right">
+        <select v-model="sortBy" class="sort-select">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="name">Name</option>
+        </select>
+        <button class="refresh-btn" @click="loadArtwork" :disabled="loading">
+          Refresh
+        </button>
+      </div>
     </div>
 
     <!-- Row 3: Image grid -->
     <ImageGrid
-      :images="artwork"
+      :images="sortedArtwork"
       :selected-ids="selectedIds"
       :current-id="currentId"
       :loading="loading"
@@ -84,7 +91,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import ImageGrid from '../components/ImageGrid.vue'
 import ActionBar from '../components/ActionBar.vue'
 
@@ -95,6 +102,31 @@ const currentId = ref(null)
 const selectedIds = ref(new Set())
 const loading = ref(false)
 const deleting = ref(false)
+const sortBy = ref('newest')
+
+const sortedArtwork = computed(() => {
+  const items = [...artwork.value]
+  if (sortBy.value === 'name') {
+    return items.sort((a, b) => (a.title || a.content_id || '').localeCompare(b.title || b.content_id || ''))
+  }
+  if (sortBy.value === 'newest') {
+    return items.sort((a, b) => {
+      if (!a.created_at && !b.created_at) return 0
+      if (!a.created_at) return 1
+      if (!b.created_at) return -1
+      return b.created_at.localeCompare(a.created_at)
+    })
+  }
+  if (sortBy.value === 'oldest') {
+    return items.sort((a, b) => {
+      if (!a.created_at && !b.created_at) return 0
+      if (!a.created_at) return 1
+      if (!b.created_at) return -1
+      return a.created_at.localeCompare(b.created_at)
+    })
+  }
+  return items
+})
 
 // Slideshow state
 const connected = ref(false)
@@ -292,6 +324,27 @@ defineExpose({ loadArtwork })
 .duration-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-select {
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #3a3a5e;
+  background: #2a2a4e;
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #4a90d9;
 }
 
 .refresh-btn {

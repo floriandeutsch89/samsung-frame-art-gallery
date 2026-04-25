@@ -8,6 +8,7 @@ from src.services.reframed_client import get_reframed_client
 from src.services.tv_client import get_tv_client, TVClient
 from src.services.image_processor import generate_preview, process_for_tv
 from src.services.preview_cache import get_preview_cache
+from src.services.tv_content_names import save_name
 
 router = APIRouter()
 
@@ -164,10 +165,13 @@ async def upload_reframed_artwork(request: ReframedUploadRequest):
                 result["processed_data"],
                 display_this,
             )
+            content_id = upload_result.get("content_id")
+            if content_id:
+                save_name(content_id, item.title)
             results.append({
                 "image_id": item.image_id,
                 "success": True,
-                "content_id": upload_result.get("content_id"),
+                "content_id": content_id,
                 "title": item.title,
             })
         except Exception as e:
