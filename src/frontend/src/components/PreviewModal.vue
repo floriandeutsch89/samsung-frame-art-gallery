@@ -175,23 +175,29 @@ const TARGET_RATIO = 16 / 9
 const CANVAS_WIDTH = 800
 const CANVAS_HEIGHT = 500  // Larger than 16:9 to show context
 
-// JS-driven canvas sizing: measure the container and compute pixel-perfect dimensions
-// so the canvas fills the available space on any screen size / orientation.
+// JS-driven canvas sizing: only active in landscape mobile where iOS Safari's
+// aspect-ratio + max-height: 100% is unreliable on flex items.
+// In portrait and desktop, CSS handles it correctly and JS stays out of the way.
 const canvasPixelWidth = ref(0)
 const canvasPixelHeight = ref(0)
 
+const landscapeQuery = typeof window !== 'undefined'
+  ? window.matchMedia('(orientation: landscape) and (max-height: 600px)')
+  : null
+
 const updateCanvasSize = () => {
   const el = containerRef.value
-  if (!el) return
+  if (!el || !landscapeQuery?.matches) {
+    canvasPixelWidth.value = 0
+    canvasPixelHeight.value = 0
+    return
+  }
   const { width, height } = el.getBoundingClientRect()
   const aspect = CANVAS_WIDTH / CANVAS_HEIGHT  // 8/5 = 1.6
-  // Fit within available space, maintaining aspect ratio
   if (width / height > aspect) {
-    // Height is the constraint
     canvasPixelHeight.value = height
     canvasPixelWidth.value = height * aspect
   } else {
-    // Width is the constraint
     canvasPixelWidth.value = width
     canvasPixelHeight.value = width / aspect
   }
@@ -396,7 +402,9 @@ watch(containerRef, (el) => {
 
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange)
+  landscapeQuery?.addEventListener('change', updateCanvasSize)
 })
+
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
@@ -405,6 +413,7 @@ onUnmounted(() => {
   document.removeEventListener('touchend', stopDrag)
   document.removeEventListener('touchcancel', stopDrag)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
+  landscapeQuery?.removeEventListener('change', updateCanvasSize)
   resizeObserver?.disconnect()
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {})
@@ -637,11 +646,13 @@ onUnmounted(() => {
 
 .reframe-canvas {
   position: relative;
-  /* JS (ResizeObserver) sets explicit width+height via inline style;
-     these CSS values are the fallback before JS fires. */
+  /* CSS handles sizing on desktop and portrait mobile.
+     JS (ResizeObserver) overrides width+height only in landscape mobile
+     where iOS Safari's aspect-ratio + max-height: 100% is unreliable. */
   width: 100%;
   max-width: 800px;
   aspect-ratio: 8 / 5;
+  max-height: 100%;
   cursor: grab;
   border-radius: 4px;
   background: #1a1a2e;
