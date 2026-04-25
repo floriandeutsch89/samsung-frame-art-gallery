@@ -250,20 +250,26 @@ const startDrag = (e) => {
 
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
-  document.addEventListener('touchmove', onDrag)
+  document.addEventListener('touchmove', onDrag, { passive: false })
   document.addEventListener('touchend', stopDrag)
+  document.addEventListener('touchcancel', stopDrag)
 }
 
 const onDrag = (e) => {
   if (!isDragging.value) return
+  e.preventDefault()
 
   const clientX = e.touches ? e.touches[0].clientX : e.clientX
   const clientY = e.touches ? e.touches[0].clientY : e.clientY
 
-  const deltaX = clientX - dragStartX.value
-  const deltaY = clientY - dragStartY.value
-
   const imgRatio = imageNaturalWidth.value / imageNaturalHeight.value
+
+  // Scale from screen pixels to canvas pixels to account for max-width shrinking the canvas
+  const canvasEl = viewportRef.value
+  const scale = canvasEl ? CANVAS_WIDTH / canvasEl.getBoundingClientRect().width : 1
+
+  const deltaX = (clientX - dragStartX.value) * scale
+  const deltaY = (clientY - dragStartY.value) * scale
 
   // Get displayed image dimensions (same calc as canvasImageStyle)
   let imgDisplayWidth, imgDisplayHeight
@@ -289,7 +295,7 @@ const onDrag = (e) => {
   const maxOffsetX = imgDisplayWidth - cropWidth
   const maxOffsetY = imgDisplayHeight - cropHeight
 
-  // Calculate new offset (drag moves the crop window, so positive delta = positive offset)
+  // Drag moves the crop window; positive delta = positive offset
   if (maxOffsetX > 0) {
     offsetX.value = Math.max(0, Math.min(1, dragStartOffsetX.value + deltaX / maxOffsetX))
   }
@@ -306,6 +312,7 @@ const stopDrag = () => {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  document.removeEventListener('touchcancel', stopDrag)
 
   // Emit offset change to parent
   if (props.selectedPaths.length === 1) {
@@ -332,6 +339,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  document.removeEventListener('touchcancel', stopDrag)
 })
 </script>
 

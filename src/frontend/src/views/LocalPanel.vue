@@ -75,7 +75,7 @@
       :matte-percent="mattePercent"
       :loading="previewLoading"
       :reframe-enabled="reframeEnabled"
-      :selected-paths="Array.from(selectedIds)"
+      :selected-paths="selectedPathsArray"
       @close="showPreview = false"
       @upload="uploadFromPreview"
       @offset-change="fetchPreviewWithOffset"
@@ -118,8 +118,10 @@ const reframeEnabled = ref(false)
 const reframeOffsets = ref({})  // path -> {x, y}
 const showCollectionPicker = ref(false)
 
+const selectedPathsArray = computed(() => Array.from(selectedIds.value))
+
 const selectedItemsForCollection = computed(() => {
-  return Array.from(selectedIds.value).map(path => ({
+  return selectedPathsArray.value.map(path => ({
     type: 'local',
     path
   }))
