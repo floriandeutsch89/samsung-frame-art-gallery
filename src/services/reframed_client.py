@@ -352,6 +352,15 @@ class ReframedClient:
             "has_more": end < total,
         }
 
+    async def fetch_preview_image(self, image_id: str) -> bytes:
+        """Download the CDN /preview variant — sufficient quality for the preview modal."""
+        url = f"{CDN_BASE}/{image_id}/preview"
+        image_headers = {**_HEADERS, "Accept": "image/*"}
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(url, headers=image_headers, timeout=30)
+            resp.raise_for_status()
+            return resp.content
+
     async def fetch_image(self, image_id: str, slug: str = "") -> bytes:
         """Download the full-resolution image for TV upload.
 

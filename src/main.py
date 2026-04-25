@@ -13,6 +13,7 @@ from src.api import images, tv, met, reframed, collections
 from src.api.auth import APP_PASSWORD, is_authenticated, router as auth_router
 from src.services.thumbnails import initialize_thumbnails
 from src.services.tv_client import TVClient
+from src.services.preview_cache import get_preview_cache
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Samsung Frame Art Gallery...")
     executor = ThreadPoolExecutor(max_workers=1)
     executor.submit(initialize_thumbnails)
+    get_preview_cache().purge_older_than(30)
 
     # Initialize TV client: saved settings take precedence, TV_IP env var is the bootstrap fallback
     try:

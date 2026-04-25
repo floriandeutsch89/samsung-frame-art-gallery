@@ -6,6 +6,8 @@
     :style="{ aspectRatio: computedAspectRatio }"
     @click="$emit('toggle')"
     @dblclick.stop="$emit('preview')"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
     @touchstart="onTouchStart"
     @touchend="onTouchEnd"
     @touchmove="onTouchCancel"
@@ -16,6 +18,7 @@
     </div>
     <img
       v-if="isVisible && thumbnailUrl && !imgError"
+      class="card-img"
       :src="thumbnailUrl"
       :alt="displayName"
       @error="imgError = true"
@@ -30,6 +33,13 @@
       <span v-if="isCurrent" class="current-badge">NOW</span>
     </div>
   </div>
+
+  <Teleport to="body">
+    <div v-if="showHoverPreview" class="img-hover-preview" :style="hoverStyle">
+      <img :src="hoverImageUrl" :alt="displayName" />
+      <div class="img-hover-name">{{ displayName }}</div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -53,6 +63,10 @@ const imgError = ref(false)
 const imgLoaded = ref(false)
 const longPressTimer = ref(null)
 const LONG_PRESS_DELAY = 500
+
+const showHoverPreview = ref(false)
+const hoverStyle = ref({})
+let hoverTimer = null
 
 let observer = null
 
@@ -88,7 +102,28 @@ onUnmounted(() => {
     observer.unobserve(cardRef.value)
   }
   observer = null
+  clearTimeout(hoverTimer)
 })
+
+const onMouseEnter = () => {
+  hoverTimer = setTimeout(() => {
+    if (!cardRef.value) return
+    const rect = cardRef.value.getBoundingClientRect()
+    const W = 360
+    const MARGIN = 10
+    let left = rect.right + MARGIN
+    if (left + W > window.innerWidth - MARGIN) left = rect.left - W - MARGIN
+    let top = rect.top + rect.height / 2
+    top = Math.max(MARGIN, Math.min(top, window.innerHeight - MARGIN))
+    hoverStyle.value = { left: `${left}px`, top: `${top}px`, transform: 'translateY(-50%)' }
+    showHoverPreview.value = true
+  }, 250)
+}
+
+const onMouseLeave = () => {
+  clearTimeout(hoverTimer)
+  showHoverPreview.value = false
+}
 
 const onTouchStart = () => {
   longPressTimer.value = setTimeout(() => {
@@ -109,6 +144,12 @@ const onTouchCancel = () => {
     longPressTimer.value = null
   }
 }
+
+const hoverImageUrl = computed(() => {
+  // Prefer higher-res image_url (Reframed /preview, Met primary image)
+  if (props.image.image_url) return props.image.image_url
+  return thumbnailUrl.value
+})
 
 const thumbnailUrl = computed(() => {
   if (imgError.value) return null
@@ -193,7 +234,7 @@ const computedAspectRatio = computed(() => {
   cursor: pointer;
 }
 
-img {
+.card-img {
   position: absolute;
   top: 0;
   left: 0;
@@ -204,7 +245,7 @@ img {
   transition: opacity 0.3s ease;
 }
 
-img.loaded {
+.card-img.loaded {
   opacity: 1;
 }
 
@@ -250,5 +291,35 @@ img.loaded {
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: bold;
+}
+</style>
+
+<style>
+.img-hover-preview {
+  position: fixed;
+  z-index: 9999;
+  width: 360px;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5e;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+.img-hover-preview img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 300px;
+  object-fit: contain;
+  background: #0d0d1a;
+}
+.img-hover-name {
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

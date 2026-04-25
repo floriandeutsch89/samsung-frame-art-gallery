@@ -2,6 +2,7 @@
 import hashlib
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -136,6 +137,22 @@ class PreviewCache:
         else:
             # Can't efficiently invalidate all without tracking - just log
             _LOGGER.debug(f"Invalidate all previews for {identifier} not implemented")
+
+    def purge_older_than(self, days: int) -> int:
+        """Remove cache files whose mtime is older than N days. Returns file count removed."""
+        cutoff = time.time() - days * 86400
+        removed = 0
+        if CACHE_DIR.exists():
+            for path in CACHE_DIR.glob("*.jpg"):
+                try:
+                    if path.stat().st_mtime < cutoff:
+                        path.unlink(missing_ok=True)
+                        removed += 1
+                except OSError:
+                    pass
+        if removed:
+            _LOGGER.info(f"Purged {removed} preview cache files older than {days} days")
+        return removed
 
     def clear(self) -> int:
         """Clear all cached previews. Returns count of files removed."""

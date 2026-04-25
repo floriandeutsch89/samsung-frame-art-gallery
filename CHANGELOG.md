@@ -8,13 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.2] - 2026-04-25
 
 ### Added
-- **Frontend** - Delete option for local images
-- **Frontend** - Zoom option for re-framing images
-- **Frontend** - Support for more image file types (.png, .webp, .tiff)
-- **Frontend** - Password option via `APP_PASSWORD` variable
-- **Frontend** - Added Reframed as image source (URL scraping)
-- **Frontend** - Added option to delete all selected local images
-- **Frontend** - Added option to hide Metropolitan Museum of Art Gallery (Reframed should be default)
+**Frontend**:
+- Delete option for local images
+- Zoom option for re-framing images
+- Support for more image file types (.png, .webp, .tiff)
+- Password option via `APP_PASSWORD` variable
+- Added Reframed as image source (URL scraping)
+- Added option to delete all selected local images
+- Added hover effect on images
+- Added option to hide Metropolitan Museum of Art Gallery (Reframed should be default)
+
+**Docker Architecture**
+- cleanup thumbnails every 30 days to prevent taking up disk space
 
 ### Fixed
 - **Samsung-Integration** - API calls for older frame models
@@ -22,21 +27,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2026-04-25
 
 ### Added
-- **Frontend** - Option to upload your own images via phone or browser
-- **Frontend** - Automatic HEIC conversion
-- **Frontend** - visual indication when uploading images
+**Frontend**
+- Option to upload your own images via phone or browser
+- Automatic HEIC conversion
+- visual indication when uploading images
 
 ### Changed
-- **Frontend** - Cap images to 4k resolution when uploading (TV can't handle any more)
-- **Frontend** - Re-framing is now enabled by default
-- **Docker Architecture** - Changed to volume mounts for app_data instead of bind mounts
-- **Docker Architecture** - Reduced final docker image size to ~300 MB
+**Frontend**
+- Cap images to 4k resolution when uploading (TV can't handle any more)
+- Re-framing is now enabled by default
+
+**Docker Architecture**
+- Changed to volume mounts for app_data instead of bind mounts
+- Reduced final docker image size to ~300 MB
 
 ### Fixed
-- **Frontend** - Preview Modal for Re-framing was resetting its position
-- **Frontend** - the TV_IP variable is now properly used to auto-connect to the TV
-- **Frontend** - Preview option was missing on mobile
-- **Frontend** - various performance issues
+**Frontend**
+- Preview Modal for Re-framing was resetting its position
+- the TV_IP variable is now properly used to auto-connect to the TV
+- Preview option was missing on mobile
+- various performance issues
 
 ## [1.0.0] - 2026-04-24
 

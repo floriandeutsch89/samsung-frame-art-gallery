@@ -111,7 +111,7 @@ async def preview_reframed_artwork(request: ReframedPreviewRequest):
             if cached:
                 original, processed = cached
             else:
-                image_data = await client.fetch_image(item.image_id, item.slug)
+                image_data = await client.fetch_preview_image(item.image_id)
                 original, processed = await asyncio.to_thread(
                     generate_preview, image_data, request.crop_percent, request.matte_percent,
                     request.reframe_enabled,
