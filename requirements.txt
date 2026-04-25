@@ -2,5 +2,6 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 python-multipart>=0.0.7
 Pillow>=11.1.0
+pillow-heif>=0.18.0
 httpx>=0.27.0
 git+https://github.com/NickWaterton/samsung-tv-ws-api.git
