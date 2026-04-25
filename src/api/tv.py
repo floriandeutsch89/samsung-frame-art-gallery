@@ -203,18 +203,19 @@ async def delete_artwork(content_id: str):
         raise HTTPException(status_code=503, detail=str(e))
 
 
+_NO_CACHE = {"Cache-Control": "no-store"}
+
+
 @router.get("/artwork/{content_id}/thumbnail")
 async def get_artwork_thumbnail(content_id: str):
     """Get thumbnail for TV artwork. May timeout for built-in Samsung content."""
     client = require_tv_client()
     try:
-        # Run blocking TV call in thread pool to not block event loop
         thumbnail_data = await asyncio.to_thread(client.get_thumbnail, content_id)
         if not thumbnail_data:
             raise HTTPException(status_code=404, detail="Thumbnail not found")
-        return Response(content=thumbnail_data, media_type="image/jpeg")
+        return Response(content=thumbnail_data, media_type="image/jpeg", headers=_NO_CACHE)
     except Exception as e:
-        # Thumbnail retrieval often times out for built-in Samsung content
         raise HTTPException(status_code=503, detail=str(e))
 
 
