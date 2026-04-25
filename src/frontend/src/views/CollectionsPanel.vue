@@ -61,7 +61,20 @@
           <!-- Action Bar -->
           <ActionBar v-if="items.length > 0" class="collections-action-bar">
             <template #left>
-              <SelectionPreview :images="selectedImages" />
+              <div v-if="uploading" class="upload-progress">
+                <div class="upload-spinner"></div>
+                <div class="progress-info">
+                  <span v-if="uploadPhase === 'processing'" class="progress-label">Processing…</span>
+                  <span v-else class="progress-label">
+                    {{ uploadCurrent }} / {{ uploadTotal }}
+                    <span class="progress-name">· {{ uploadName }}</span>
+                  </span>
+                  <div class="progress-track">
+                    <div class="progress-fill" :style="{ width: uploadProgressPct + '%' }"></div>
+                  </div>
+                </div>
+              </div>
+              <SelectionPreview v-else :images="selectedImages" />
             </template>
             <template #default>
               <div class="action-bar-right">
@@ -232,6 +245,7 @@ import SelectionPreview from '../components/SelectionPreview.vue'
 import EmptyCollections from '../components/EmptyCollections.vue'
 import EmptyCollection from '../components/EmptyCollection.vue'
 import CollectionBottomSheet from '../components/CollectionBottomSheet.vue'
+import { useUploadStream } from '../composables/useUploadStream.js'
 
 const emit = defineEmits(['uploaded', 'preview', 'switch-tab'])
 
@@ -255,10 +269,11 @@ const selectedCollection = computed(() =>
   collections.value.find(c => c.id === selectedCollectionId.value)
 )
 
+const { uploading, uploadPhase, uploadCurrent, uploadTotal, uploadName, uploadProgressPct, streamUpload } = useUploadStream()
+
 const items = ref([])
 const selectedIds = ref(new Set())
 const loading = ref(false)
-const uploading = ref(false)
 const unavailableCount = ref(0)
 
 const cropPercent = ref(0)
@@ -454,27 +469,29 @@ const removeSelected = async () => {
 const upload = async (display) => {
   if (selectedIds.value.size === 0) return
 
-  uploading.value = true
-
   const selected = items.value.filter(i => selectedIds.value.has(i._id))
   const localPaths = selected.filter(i => i.type === 'local').map(i => i.path)
   const metIds = selected.filter(i => i.type === 'met').map(i => i.object_id)
 
-  try {
-    if (localPaths.length > 0) {
-      await fetch('/api/tv/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paths: localPaths,
-          crop_percent: cropPercent.value,
-          matte_percent: mattePercent.value,
-          display: display && metIds.length === 0
-        })
-      })
-    }
+  const finish = () => {
+    selectedIds.value = new Set()
+    emit('uploaded')
+  }
 
-    if (metIds.length > 0) {
+  if (localPaths.length > 0) {
+    await streamUpload(
+      {
+        paths: localPaths,
+        crop_percent: cropPercent.value,
+        matte_percent: mattePercent.value,
+        display: display && metIds.length === 0,
+      },
+      metIds.length === 0 ? finish : undefined,
+    )
+  }
+
+  if (metIds.length > 0) {
+    try {
       await fetch('/api/met/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -482,17 +499,13 @@ const upload = async (display) => {
           object_ids: metIds,
           crop_percent: cropPercent.value,
           matte_percent: mattePercent.value,
-          display
-        })
+          display,
+        }),
       })
+    } catch (e) {
+      console.error('Met upload failed:', e)
     }
-
-    selectedIds.value = new Set()
-    emit('uploaded')
-  } catch (e) {
-    console.error('Upload failed:', e)
-  } finally {
-    uploading.value = false
+    finish()
   }
 }
 
@@ -876,5 +889,60 @@ defineExpose({ loadCollections })
 .settings-actions .secondary {
   background: #3a3a5e;
   color: white;
+}
+
+/* Upload progress strip */
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.upload-spinner {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #2a2a4e;
+  border-top-color: #4a90d9;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.progress-label {
+  font-size: 0.85rem;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.progress-name {
+  color: #888;
+}
+
+.progress-track {
+  height: 3px;
+  background: #2a2a4e;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #4a90d9;
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 </style>

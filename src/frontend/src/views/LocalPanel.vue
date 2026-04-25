@@ -39,7 +39,21 @@
 
     <ActionBar>
       <template #left>
+        <div v-if="uploading" class="upload-progress">
+          <div class="upload-spinner"></div>
+          <div class="progress-info">
+            <span v-if="uploadPhase === 'processing'" class="progress-label">Processing…</span>
+            <span v-else class="progress-label">
+              {{ uploadCurrent }} / {{ uploadTotal }}
+              <span class="progress-name">· {{ uploadName }}</span>
+            </span>
+            <div class="progress-track">
+              <div class="progress-fill" :style="{ width: uploadProgressPct + '%' }"></div>
+            </div>
+          </div>
+        </div>
         <CropSettings
+          v-else
           :has-selection="selectedIds.size > 0"
           @change="setSettings"
           @preview="loadPreviews"
@@ -97,15 +111,17 @@ import ActionBar from '../components/ActionBar.vue'
 import CropSettings from '../components/CropSettings.vue'
 import PreviewModal from '../components/PreviewModal.vue'
 import CollectionPicker from '../components/CollectionPicker.vue'
+import { useUploadStream } from '../composables/useUploadStream.js'
 
 const emit = defineEmits(['uploaded', 'preview'])
+
+const { uploading, uploadPhase, uploadCurrent, uploadTotal, uploadName, uploadProgressPct, streamUpload } = useUploadStream()
 
 const images = ref([])
 const folders = ref([])
 const currentFolder = ref(null)
 const selectedIds = ref(new Set())
 const loading = ref(false)
-const uploading = ref(false)
 const importing = ref(false)
 const importError = ref(null)
 const fileInput = ref(null)
@@ -253,30 +269,20 @@ const uploadFromPreview = async () => {
 
 const upload = async (display) => {
   if (selectedIds.value.size === 0) return
-
-  uploading.value = true
-  try {
-    const res = await fetch('/api/tv/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        paths: Array.from(selectedIds.value),
-        crop_percent: cropPercent.value,
-        matte_percent: mattePercent.value,
-        display,
-        reframe_enabled: reframeEnabled.value,
-        reframe_offsets: reframeOffsets.value
-      })
-    })
-    const data = await res.json()
-    console.log('Upload results:', data)
-    selectedIds.value = new Set()
-    emit('uploaded')
-  } catch (e) {
-    console.error('Upload failed:', e)
-  } finally {
-    uploading.value = false
-  }
+  await streamUpload(
+    {
+      paths: Array.from(selectedIds.value),
+      crop_percent: cropPercent.value,
+      matte_percent: mattePercent.value,
+      display,
+      reframe_enabled: reframeEnabled.value,
+      reframe_offsets: reframeOffsets.value,
+    },
+    () => {
+      selectedIds.value = new Set()
+      emit('uploaded')
+    }
+  )
 }
 
 const triggerFileUpload = () => {
@@ -412,5 +418,60 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Upload progress strip */
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.upload-spinner {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #2a2a4e;
+  border-top-color: #4a90d9;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.progress-label {
+  font-size: 0.85rem;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.progress-name {
+  color: #888;
+}
+
+.progress-track {
+  height: 3px;
+  background: #2a2a4e;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #4a90d9;
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 </style>
