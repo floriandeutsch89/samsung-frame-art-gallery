@@ -1,6 +1,6 @@
 # Samsung Frame Art Gallery
 
-A self-hosted web application for managing artwork on Samsung Frame TVs. Browse your local image collection or discover public domain masterpieces from the Metropolitan Museum of Art, then upload them to your TV with customizable framing options.
+A self-hosted web application for managing artwork on Samsung Frame TVs. Browse your local image collection, discover public domain masterpieces from the Metropolitan Museum of Art, or browse the curated fine art collection at Reframed Gallery — then upload to your TV with customizable framing options.
 
 > **Note:** This is a fork of [samsung-frame-art-gallery](https://github.com/mcsdodo/samsung-frame-art-gallery) with a custom infrastructure stack including Caddy reverse proxy, automated GHCR releases, and enhanced security features.
 
@@ -16,6 +16,7 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 - **Image Upload** - Upload images directly from your browser or phone — HEIC auto-converted to JPEG on arrival
 - **Delete Local Images** - Remove uploaded or unwanted images directly from the gallery
 - **Met Museum Collection** - Discover and upload public domain artwork from The Metropolitan Museum of Art's open collection (400,000+ works)
+- **Reframed Gallery** - Browse the curated fine art collection at [reframed.gallery](https://www.reframed.gallery) — filter by color, collection, or artist and upload full-resolution images directly to your TV
 
 ### TV Integration
 - **Auto TV Discovery** - Automatically finds Samsung Frame TVs on your network via SSDP
@@ -44,7 +45,7 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 ### Local Images with Masonry Layout
 Browse your image collection with a beautiful masonry grid and TV artwork panel.
 
-![Local Images](screenshots/01-local-images.png)
+![Local Images](screenshots/local-images.png)
 
 ### Met Museum Collection Search
 Search and browse public domain artwork from The Metropolitan Museum of Art.
@@ -59,7 +60,12 @@ See how your images will look with cropping and automatic matting before upload.
 ### Re-framing Mode
 Fill the entire frame with draggable positioning for single images.
 
-![Re-framing Preview](screenshots/04-reframe-preview.png)
+![Re-framing Preview](screenshots/reframe-preview.png)
+
+### Reframed Gallery
+Browse curated fine art filtered by color, collection, or artist and upload to your TV.
+
+![Reframed Gallery](screenshots/reframed-gallery.png)
 
 ## Quick Start
 
@@ -247,6 +253,13 @@ This setup uses a Docker volume for all app data and thumbnails, so data persist
 3. Select works and preview/upload just like local images
 4. All Met Museum images are public domain - free to use
 
+### Reframed Gallery Tab
+
+1. Choose a browse mode — **Recent**, **Colors**, **Collections**, or **Artists**
+2. For Colors: pick a dominant color palette (Red, Blue, Gold, etc.)
+3. For Collections / Artists: type to filter the list, then select
+4. Select artworks and preview/upload just like local images — full-resolution images are downloaded directly
+
 ### TV Panel
 
 1. View all artwork currently stored on your TV
@@ -297,6 +310,7 @@ samsung-frame-art-gallery/
 │   │   ├── images.py              # Local image endpoints (browse + upload)
 │   │   ├── tv.py                  # TV control & upload endpoints
 │   │   ├── met.py                 # Met Museum API endpoints
+│   │   ├── reframed.py            # Reframed Gallery endpoints
 │   │   └── collections.py         # Collections endpoints
 │   ├── services/
 │   │   ├── tv_client.py           # Samsung TV WebSocket client
@@ -304,6 +318,7 @@ samsung-frame-art-gallery/
 │   │   ├── tv_settings.py         # Persistent TV selection
 │   │   ├── tv_thumbnail_cache.py  # Persistent TV artwork thumbnail cache
 │   │   ├── met_client.py          # Met Museum API client
+│   │   ├── reframed_client.py     # Reframed Gallery scraper client
 │   │   ├── image_processor.py     # Crop, matte, reframe processing
 │   │   ├── thumbnails.py          # Local image thumbnails
 │   │   └── preview_cache.py       # Preview generation cache
@@ -312,6 +327,7 @@ samsung-frame-art-gallery/
 │           ├── views/
 │           │   ├── LocalPanel.vue
 │           │   ├── MetPanel.vue
+│           │   ├── ReframedPanel.vue
 │           │   ├── CollectionsPanel.vue
 │           │   └── TVPanel.vue
 │           ├── components/
@@ -340,7 +356,7 @@ samsung-frame-art-gallery/
 - **Frontend:** Vue 3.5+, Vite 5.2+, Node 22-alpine (build)
 - **Reverse Proxy:** Caddy 2-alpine (HTTPS, self-signed certificates)
 - **TV Communication:** [samsung-tv-ws-api](https://github.com/NickWaterton/samsung-tv-ws-api)
-- **External APIs:** [Met Museum Collection API](https://metmuseum.github.io/)
+- **External APIs:** [Met Museum Collection API](https://metmuseum.github.io/), [Reframed Gallery](https://www.reframed.gallery)
 - **Infrastructure:** Docker 20.10+, Docker Compose 2.0+
 - **CI/CD:** GitHub Actions (automatic builds to GHCR on version changes)
 
@@ -382,6 +398,20 @@ Uses pre-built image from GitHub Container Registry - faster startup, no build r
 | GET | `/api/met/object/{id}` | Get artwork details |
 | POST | `/api/met/preview` | Generate processed preview |
 | POST | `/api/met/upload` | Upload artwork to TV |
+
+### Reframed Gallery
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/reframed/recent` | Recently added artworks (paginated) |
+| GET | `/api/reframed/collections` | List all collections |
+| GET | `/api/reframed/collection/{slug}` | Artworks in a collection (paginated) |
+| GET | `/api/reframed/colors` | List available color filters |
+| GET | `/api/reframed/color/{color}` | Artworks by dominant color (paginated) |
+| GET | `/api/reframed/artists` | List all artists |
+| GET | `/api/reframed/artist/{slug}` | Artworks by a specific artist (paginated) |
+| POST | `/api/reframed/preview` | Generate processed preview |
+| POST | `/api/reframed/upload` | Upload artwork to TV |
 
 ### TV Control
 

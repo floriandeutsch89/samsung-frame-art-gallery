@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend** - Zoom option for re-framing images
 - **Frontend** - Support for more image file types (.png, .webp, .tiff)
 - **Frontend** - Password option via `APP_PASSWORD` variable
+- **Frontend** - Added Reframed as image source (URL scraping)
 
 ### Fixed
 - **Samsung-Integration** - API calls for older frame models

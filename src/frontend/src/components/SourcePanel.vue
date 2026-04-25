@@ -23,6 +23,12 @@
       @preview="(img) => $emit('preview', img, false)"
     />
 
+    <ReframedPanel
+      v-show="activeTab === 'reframed'"
+      @uploaded="$emit('uploaded')"
+      @preview="(img) => $emit('preview', img, false)"
+    />
+
     <CollectionsPanel
       ref="collectionsPanel"
       v-show="activeTab === 'collections'"
@@ -36,6 +42,7 @@
 import { ref, watch, onMounted } from 'vue'
 import LocalPanel from '../views/LocalPanel.vue'
 import MetPanel from '../views/MetPanel.vue'
+import ReframedPanel from '../views/ReframedPanel.vue'
 import CollectionsPanel from '../views/CollectionsPanel.vue'
 
 defineEmits(['uploaded', 'preview'])
@@ -45,6 +52,7 @@ const collectionsPanel = ref(null)
 const tabs = [
   { id: 'local', label: 'Local Images' },
   { id: 'met', label: 'Metropolitan Museum of Art' },
+  { id: 'reframed', label: 'Reframed Gallery' },
   { id: 'collections', label: 'Collections' }
 ]
 

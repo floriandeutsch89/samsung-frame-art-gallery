@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from src.api import images, tv, met, collections
+from src.api import images, tv, met, reframed, collections
 from src.api.auth import APP_PASSWORD, is_authenticated, router as auth_router
 from src.services.thumbnails import initialize_thumbnails
 from src.services.tv_client import TVClient
@@ -64,6 +64,7 @@ app.include_router(auth_router)
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(tv.router, prefix="/api/tv", tags=["tv"])
 app.include_router(met.router, prefix="/api/met", tags=["met"])
+app.include_router(reframed.router, prefix="/api/reframed", tags=["reframed"])
 app.include_router(collections.router, prefix="/api/collections", tags=["collections"])
 
 # Serve static frontend (Vue build output)
