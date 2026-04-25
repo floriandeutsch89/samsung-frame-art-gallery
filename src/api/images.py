@@ -1,14 +1,26 @@
+import io
 import os
+import uuid
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response
+from PIL import Image
+import pillow_heif
 
 from src.services.thumbnails import generate_thumbnail, get_image_dimensions
+
+pillow_heif.register_heif_opener()
 
 router = APIRouter()
 
 IMAGES_DIR = Path(os.environ.get("IMAGES_DIR", "/images"))
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg"}
+UPLOAD_ACCEPTED_MIME = {
+    "image/jpeg", "image/jpg",
+    "image/png", "image/webp", "image/gif",
+    "image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence",
+}
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
 def is_valid_image(path: Path) -> bool:
@@ -78,6 +90,53 @@ async def list_folders():
 
     folders.sort()
     return {"folders": folders}
+
+
+@router.post("/upload")
+async def upload_image(file: UploadFile = File(...), folder: str = Query("uploads")):
+    """Upload an image to the local images directory. Converts PNG/WebP to JPEG."""
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in UPLOAD_ACCEPTED_MIME and not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
+
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+
+    try:
+        img = Image.open(io.BytesIO(data))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cannot read image: {e}")
+
+    # Resolve upload subfolder safely
+    target_dir = (IMAGES_DIR / folder).resolve()
+    if not str(target_dir).startswith(str(IMAGES_DIR.resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Sanitize original filename
+    original_stem = Path(file.filename or "image").stem
+    safe_stem = "".join(c for c in original_stem if c.isalnum() or c in (" ", "-", "_")).strip() or "image"
+
+    save_path = target_dir / f"{safe_stem}.jpg"
+    if save_path.exists():
+        save_path = target_dir / f"{safe_stem}_{uuid.uuid4().hex[:8]}.jpg"
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    save_path.write_bytes(buf.getvalue())
+
+    rel_path = save_path.relative_to(IMAGES_DIR)
+    width, height = img.size
+    return {
+        "path": str(rel_path).replace("\\", "/"),
+        "name": save_path.name,
+        "size": save_path.stat().st_size,
+        "width": width,
+        "height": height,
+    }
 
 
 @router.get("/{path:path}/thumbnail")

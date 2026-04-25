@@ -11,6 +11,20 @@
           <option v-for="f in folders" :key="f" :value="f">{{ f }}</option>
         </select>
       </div>
+      <div class="header-actions">
+        <span v-if="importError" class="import-error">{{ importError }}</span>
+        <button class="add-image-btn" :disabled="importing" @click="triggerFileUpload">
+          {{ importing ? 'Importing...' : '+ Add Image' }}
+        </button>
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          multiple
+          style="display:none"
+          @change="handleFileUpload"
+        />
+      </div>
     </div>
 
     <ImageGrid
@@ -92,6 +106,9 @@ const currentFolder = ref(null)
 const selectedIds = ref(new Set())
 const loading = ref(false)
 const uploading = ref(false)
+const importing = ref(false)
+const importError = ref(null)
+const fileInput = ref(null)
 const cropPercent = ref(0)
 const mattePercent = ref(10)
 const showPreview = ref(false)
@@ -260,6 +277,43 @@ const upload = async (display) => {
   }
 }
 
+const triggerFileUpload = () => {
+  fileInput.value?.click()
+}
+
+const handleFileUpload = async (event) => {
+  const files = Array.from(event.target.files)
+  if (!files.length) return
+
+  importing.value = true
+  importError.value = null
+
+  try {
+    const folder = currentFolder.value || 'uploads'
+    for (const file of files) {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`/api/images/upload?folder=${encodeURIComponent(folder)}`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || 'Upload failed')
+      }
+    }
+    await loadImages()
+    await loadFolders()
+  } catch (e) {
+    console.error('Import failed:', e)
+    importError.value = e.message
+    setTimeout(() => { importError.value = null }, 5000)
+  } finally {
+    importing.value = false
+    event.target.value = ''
+  }
+}
+
 const onAddedToCollection = (collection) => {
   console.log(`Added ${selectedIds.value.size} items to collection: ${collection.name}`)
   // Optionally clear selection after adding
@@ -320,5 +374,41 @@ onMounted(() => {
   border: 1px solid #3a3a5e;
   background: #2a2a4e;
   color: white;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-image-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid #4a90d9;
+  background: transparent;
+  color: #4a90d9;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.add-image-btn:hover:not(:disabled) {
+  background: #4a90d9;
+  color: white;
+}
+
+.add-image-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.import-error {
+  font-size: 0.8rem;
+  color: #e07070;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
