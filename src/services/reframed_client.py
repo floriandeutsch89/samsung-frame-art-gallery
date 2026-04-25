@@ -203,13 +203,43 @@ def _parse_max_page(html: str, path_prefix: str) -> int:
     return parser.max_page
 
 
-def _extract_r2_url(html: str) -> Optional[str]:
-    """Find the public R2 full-resolution download URL embedded in an artwork page."""
-    m = re.search(r'r2\.dev/(originals/[^"\\]+)', html)
-    if m:
-        key = m.group(1).strip()
-        return f"{R2_BASE}/{quote(key, safe='/')}"
-    return None
+def _slug_to_r2_url(slug: str) -> Optional[str]:
+    """Construct the expected R2 URL directly from an artist/artwork slug.
+
+    Converts 'frederic-church/twilight-in-the-wilderness' →
+    R2_BASE/originals/Frederic Church - Twilight In The Wilderness - reframed.jpg
+    May not match if the artist/title uses unusual casing in the R2 bucket.
+    """
+    parts = slug.strip("/").split("/")
+    if len(parts) != 2:
+        return None
+    artist = _slug_to_name(parts[0])
+    title = _slug_to_name(parts[1])
+    key = f"originals/{artist} - {title} - reframed.jpg"
+    return f"{R2_BASE}/{quote(key, safe='/')}"
+
+
+def _extract_r2_url(html: str, slug: str = "") -> Optional[str]:
+    """Find the public R2 full-resolution download URL embedded in an artwork page.
+
+    When slug is provided and multiple R2 URLs are present, prefers the one whose
+    path matches the artist/title from the slug to avoid grabbing a related artwork URL.
+    """
+    matches = re.findall(r'r2\.dev/(originals/[^"\\]+)', html)
+    if not matches:
+        return None
+
+    if slug and len(matches) > 1:
+        parts = slug.strip("/").split("/")
+        if len(parts) == 2:
+            artist_hint = parts[0].replace("-", " ").lower()
+            title_hint = parts[1].replace("-", " ").lower()
+            for key in matches:
+                key_lower = key.lower()
+                if artist_hint in key_lower and title_hint in key_lower:
+                    return f"{R2_BASE}/{quote(key.strip(), safe='/')}"
+
+    return f"{R2_BASE}/{quote(matches[0].strip(), safe='/')}"
 
 
 class ReframedClient:
@@ -362,43 +392,47 @@ class ReframedClient:
             return resp.content
 
     async def fetch_image(self, image_id: str, slug: str = "") -> bytes:
-        """Download the full-resolution image for TV upload.
+        """Download the full-resolution image for TV upload via the public R2 bucket.
 
-        Fetches the artwork page to extract the public R2 URL (original file).
-        Falls back to CDN /public and /download variants if no R2 URL is found.
+        Strategy:
+        1. Construct R2 URL directly from slug (fast, no page fetch, unambiguous).
+        2. Fall back to fetching the artwork page and extracting the R2 URL from the
+           HTML, preferring the URL that matches the slug over any related-artwork URLs.
         """
+        if not slug:
+            raise RuntimeError(f"Cannot download full-resolution image without slug: {image_id}")
+
         image_headers = {**_HEADERS, "Accept": "image/*"}
 
-        if slug:
+        # 1. Try slug-derived R2 URL — no network round-trip for the page needed.
+        candidate = _slug_to_r2_url(slug)
+        if candidate:
             try:
-                html = await self._fetch_html(f"{SITE_BASE}/{slug}")
-                r2_url = _extract_r2_url(html)
-                if r2_url:
-                    async with httpx.AsyncClient(follow_redirects=True) as client:
-                        resp = await client.get(r2_url, headers=image_headers, timeout=60)
-                        if resp.status_code == 200:
-                            _LOGGER.info(f"Downloaded full-res from R2: {slug}")
-                            return resp.content
-                        _LOGGER.debug(f"R2 returned {resp.status_code} for {slug}")
-            except Exception as e:
-                _LOGGER.debug(f"R2 fetch failed for {slug}: {e}")
-
-        last_error: Optional[Exception] = None
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            for variant in ("public", "download"):
-                url = f"{CDN_BASE}/{image_id}/{variant}"
-                try:
-                    resp = await client.get(url, headers=image_headers, timeout=30)
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    resp = await client.get(candidate, headers=image_headers, timeout=60)
                     if resp.status_code == 200:
-                        _LOGGER.info(f"Downloaded reframed image via /{variant}: {image_id}")
+                        _LOGGER.info(f"Downloaded full-res from R2 (slug-derived): {slug}")
                         return resp.content
-                    _LOGGER.debug(f"/{variant} returned {resp.status_code} for {image_id}")
-                    last_error = Exception(f"HTTP {resp.status_code} from /{variant}")
-                except Exception as e:
-                    _LOGGER.debug(f"/{variant} failed for {image_id}: {e}")
-                    last_error = e
+                    _LOGGER.debug(f"Slug-derived R2 returned {resp.status_code} for {slug}")
+            except Exception as e:
+                _LOGGER.debug(f"Slug-derived R2 fetch failed for {slug}: {e}")
 
-        raise RuntimeError(f"Could not download full-resolution image {image_id}") from last_error
+        # 2. Page-scrape the artwork URL and extract the R2 link, matching against the
+        #    slug so we don't accidentally pick up a related-artwork URL on the page.
+        try:
+            html = await self._fetch_html(f"{SITE_BASE}/{slug}")
+            r2_url = _extract_r2_url(html, slug)
+            if r2_url:
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    resp = await client.get(r2_url, headers=image_headers, timeout=60)
+                    if resp.status_code == 200:
+                        _LOGGER.info(f"Downloaded full-res from R2 (page-scraped): {slug}")
+                        return resp.content
+                    _LOGGER.debug(f"Page-scraped R2 URL returned {resp.status_code} for {slug}")
+        except Exception as e:
+            _LOGGER.debug(f"Page scraping failed for {slug}: {e}")
+
+        raise RuntimeError(f"Could not download full-resolution image for {slug}")
 
 
 _client: Optional[ReframedClient] = None
