@@ -208,35 +208,13 @@ async def get_artwork_thumbnail(content_id: str):
     """Get thumbnail for TV artwork. May timeout for built-in Samsung content."""
     client = require_tv_client()
     try:
+        # Run blocking TV call in thread pool to not block event loop
         thumbnail_data = await asyncio.to_thread(client.get_thumbnail, content_id)
         if not thumbnail_data:
             raise HTTPException(status_code=404, detail="Thumbnail not found")
         return Response(content=thumbnail_data, media_type="image/jpeg")
     except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-
-@router.get("/artwork/{content_id}/download")
-async def download_artwork(content_id: str):
-    """Download TV artwork as a JPEG file."""
-    client = require_tv_client()
-    try:
-        image_data = await asyncio.to_thread(client.get_thumbnail, content_id)
-        if not image_data:
-            raise HTTPException(status_code=404, detail="Artwork not found")
-        names = get_all_names()
-        entry = names.get(content_id, {})
-        title = entry.get("title", "") if isinstance(entry, dict) else ""
-        safe_name = "".join(c for c in (title or content_id) if c.isalnum() or c in " -_") .strip() or content_id
-        filename = f"{safe_name}.jpg"
-        return Response(
-            content=image_data,
-            media_type="image/jpeg",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
+        # Thumbnail retrieval often times out for built-in Samsung content
         raise HTTPException(status_code=503, detail=str(e))
 
 

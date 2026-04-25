@@ -14,15 +14,16 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 ### Image Sources
 - **Local Images** - Browse JPEG, PNG, WebP, TIFF, and HEIC/HEIF files with folder navigation and smart thumbnails
 - **Image Upload** - Upload images directly from your browser or phone — HEIC auto-converted to JPEG on arrival
-- **Delete Local Images** - Remove uploaded or unwanted images directly from the gallery
-- **Met Museum Collection** - Discover and upload public domain artwork from The Metropolitan Museum of Art's open collection (400,000+ works)
+- **Bulk Delete** - Select multiple local images and delete them all with one click
+- **Met Museum Collection** - Discover and upload public domain artwork from The Metropolitan Museum of Art's open collection (400,000+ works) — can be hidden via `DISABLE_MET_GALLERY`
 - **Reframed Gallery** - Browse the curated fine art collection at [reframed.gallery](https://www.reframed.gallery) — filter by color, collection, or artist and upload full-resolution images directly to your TV
 
 ### TV Integration
 - **Auto TV Discovery** - Automatically finds Samsung Frame TVs on your network via SSDP
 - **TV_IP Auto-Connect** - Set `TV_IP` in `.env` to auto-connect on startup and pre-fill the connection dialog
 - **Batch Upload** - Upload multiple images to your TV at once with real-time progress
-- **Art Management** - View, display, and delete artwork on your TV
+- **Art Management** - View, display, and delete artwork on your TV with real artwork names (not Samsung's internal `MY_*` IDs)
+- **TV Artwork Sorting** - Sort TV artwork by name, newest first, or oldest first
 - **Slideshow Control** - Enable/disable and configure the TV's built-in slideshow
 - **Live Preview** - See exactly how your images will look before uploading
 
@@ -32,6 +33,7 @@ A self-hosted web application for managing artwork on Samsung Frame TVs. Browse 
 - **Re-framing Mode** - Fill the entire frame with draggable positioning and zoom (1×–5×), enabled by default, with touch support for mobile
 
 ### User Experience
+- **Hover Preview** - Hover over any image card for 250ms to see a full preview popup alongside the card
 - **Password Protection** - Optional single-password auth via `APP_PASSWORD` — asked once, remembered forever via cookie
 - **Upload Progress** - Real-time per-image progress indicator during TV uploads (SSE streaming)
 - **Responsive Design** - Split-panel desktop layout, tabbed mobile interface
@@ -176,9 +178,10 @@ Create a `.env` file (see `.env.example`) to configure the application:
 | `IMAGES_DIR` | `./images` | Path to your local image collection |
 | `APP_PASSWORD` | - | Password to protect the app — asked once, stored in a cookie. Leave empty to disable |
 | `TV_IP` | - | Pre-configure TV IP — auto-connects on startup and pre-fills the connection dialog |
-| `DEFAULT_CROP_PERCENT` | `5` | Default edge crop percentage (0-50) |
+| `DEFAULT_CROP_PERCENT` | `0` | Default edge crop percentage (0-50) |
 | `DEFAULT_MATTE_PERCENT` | `10` | Default matte size percentage (0-50) |
 | `THUMBNAILS_DIR` | `/app/data/thumbnails` | Directory for cached thumbnails — auto-detected in Docker, override if needed |
+| `DISABLE_MET_GALLERY` | `1` | Set to `1` to hide the Metropolitan Museum of Art tab. Leave empty or `0` to show it |
 | `DOMAIN` | `artgallery.example.com` | Domain for HTTPS reverse proxy |
 
 ### HTTPS & Reverse Proxy
@@ -239,12 +242,13 @@ This setup uses a Docker volume for all app data and thumbnails, so data persist
 
 1. Browse your image collection using folder navigation — supports JPEG, PNG, WebP, TIFF, HEIC/HEIF
 2. Upload new images via the **+ Add Image** button (files are stored in the `uploads/` subfolder)
-3. Delete images using the trash button that appears on hover
+3. Hover over any image for 250ms to see a full-size preview popup
 4. Select one or more images by clicking on them
-5. Use **Re-framing** mode (on by default) to fill the 16:9 frame — drag to pan, use the zoom slider (1×–5×) to crop tighter
-6. Or adjust **Crop** and **Matte** percentages for the classic bordered look
-7. Click **Preview** to see a before/after comparison
-8. Click **Upload** or **Upload & Display** — a progress bar shows each image being sent
+5. Delete selected images using the **Delete (N)** button in the action bar
+6. Use **Re-framing** mode (on by default) to fill the 16:9 frame — drag to pan, use the zoom slider (1×–5×) to crop tighter
+7. Or adjust **Crop** and **Matte** percentages for the classic bordered look
+8. Click **Preview** to see a before/after comparison
+9. Click **Upload** or **Upload & Display** — a progress bar shows each image being sent
 
 ### Met Museum Tab
 
@@ -258,13 +262,16 @@ This setup uses a Docker volume for all app data and thumbnails, so data persist
 1. Choose a browse mode — **Recent**, **Colors**, **Collections**, or **Artists**
 2. For Colors: pick a dominant color palette (Red, Blue, Gold, etc.)
 3. For Collections / Artists: type to filter the list, then select
-4. Select artworks and preview/upload just like local images — full-resolution images are downloaded directly
+4. Hover over any artwork for 250ms to see a full-size preview popup
+5. Select artworks and upload — **Re-framing** is on by default so images fill the screen with no white borders
+6. Full-resolution images are fetched directly from Reframed's CDN; the preview modal uses a lighter-weight preview variant
 
 ### TV Panel
 
-1. View all artwork currently stored on your TV
-2. Click any artwork to display it
-3. Delete artwork you no longer want
+1. View all artwork currently stored on your TV — artworks you uploaded show their real name, not Samsung's internal `MY_*` ID
+2. Sort artwork by **Newest first**, **Oldest first**, or **Name** using the dropdown in the panel header
+3. Click any artwork to select it, then use **Display** to make it the active artwork
+4. Delete artwork you no longer want with the **Delete (N)** button
 
 ### Upload Progress
 
@@ -314,6 +321,7 @@ samsung-frame-art-gallery/
 │   │   └── collections.py         # Collections endpoints
 │   ├── services/
 │   │   ├── tv_client.py           # Samsung TV WebSocket client
+│   │   ├── tv_content_names.py    # Persistent content_id → title mapping
 │   │   ├── tv_discovery.py        # SSDP-based TV discovery
 │   │   ├── tv_settings.py         # Persistent TV selection
 │   │   ├── tv_thumbnail_cache.py  # Persistent TV artwork thumbnail cache
@@ -321,7 +329,7 @@ samsung-frame-art-gallery/
 │   │   ├── reframed_client.py     # Reframed Gallery scraper client
 │   │   ├── image_processor.py     # Crop, matte, reframe processing
 │   │   ├── thumbnails.py          # Local image thumbnails
-│   │   └── preview_cache.py       # Preview generation cache
+│   │   └── preview_cache.py       # Preview generation cache (30-day auto-purge)
 │   └── frontend/                  # Vue 3 + Vite SPA
 │       └── src/
 │           ├── views/
@@ -422,7 +430,7 @@ Uses pre-built image from GitHub Container Registry - faster startup, no build r
 | GET | `/api/tv/status` | Get TV connection status |
 | GET | `/api/tv/settings` | Get saved TV selection (includes `env_ip`) |
 | POST | `/api/tv/settings` | Save TV selection |
-| GET | `/api/tv/artwork` | List artwork on TV |
+| GET | `/api/tv/artwork` | List artwork on TV (includes `title` and `created_at`) |
 | GET | `/api/tv/artwork/current` | Get currently displayed artwork |
 | POST | `/api/tv/artwork/current` | Display specific artwork |
 | DELETE | `/api/tv/artwork/{id}` | Delete artwork from TV |
