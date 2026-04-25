@@ -137,13 +137,29 @@ class TVClient:
 
     def upload_artwork(self, image_data: bytes, display: bool = False) -> dict:
         tv = self._get_tv()
-        # Always use no matte - we add our own white matte server-side
-        result = tv.art().upload(image_data, matte="none", portrait_matte="none")
-        if display and result:
-            content_id = result.get("content_id")
-            if content_id:
-                tv.art().select_image(content_id)
-        return result or {}
+        with tv.art() as art:
+            content_id = art.upload(image_data, file_type="jpg", matte="none", portrait_matte="none")
+            if display and content_id:
+                art.select_image(content_id)
+        return {"content_id": content_id} if content_id else {}
+
+    def upload_artwork_batch(self, items: list[tuple[bytes, bool]]) -> list[dict]:
+        """Upload multiple images reusing a single WebSocket session.
+
+        items: list of (image_data, display_this) pairs.
+        """
+        tv = self._get_tv()
+        results = []
+        with tv.art() as art:
+            for image_data, display in items:
+                try:
+                    content_id = art.upload(image_data, file_type="jpg", matte="none", portrait_matte="none")
+                    if display and content_id:
+                        art.select_image(content_id)
+                    results.append({"success": True, "content_id": content_id} if content_id else {"success": False, "error": "No content_id returned"})
+                except Exception as e:
+                    results.append({"success": False, "error": str(e)})
+        return results
 
     def _fetch_thumbnail_from_tv(self, content_id: str) -> Optional[bytes]:
         """Fetch thumbnail from TV using appropriate API based on TV version."""

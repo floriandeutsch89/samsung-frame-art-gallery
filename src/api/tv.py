@@ -306,25 +306,24 @@ async def upload_artwork(request: UploadRequest):
     # Process all images in parallel
     processed_items = await asyncio.gather(*[read_and_process(p) for p in request.paths])
 
-    # Upload sequentially (TV may not handle parallel uploads well)
-    results = []
-    for i, item in enumerate(processed_items):
-        if "success" in item and not item["success"]:
-            results.append(item)
-            continue
+    # Separate failed items from those ready to upload
+    failed = [item for item in processed_items if "success" in item and not item["success"]]
+    to_upload = [item for item in processed_items if "processed_data" in item]
 
-        try:
-            display_this = request.display and i == len(processed_items) - 1
-            result = await asyncio.to_thread(
-                client.upload_artwork,
-                item["processed_data"],
-                display_this
-            )
-            results.append({"path": item["path"], "success": True, "result": result})
-        except Exception as e:
-            results.append({"path": item["path"], "success": False, "error": str(e)})
+    upload_results = []
+    if to_upload:
+        # Build (image_data, display_this) pairs; only display on the last image
+        last_idx = len(to_upload) - 1
+        batch = [
+            (item["processed_data"], request.display and i == last_idx)
+            for i, item in enumerate(to_upload)
+        ]
+        # One WebSocket session for the whole batch — avoids per-image handshake overhead
+        batch_results = await asyncio.to_thread(client.upload_artwork_batch, batch)
+        for item, result in zip(to_upload, batch_results):
+            upload_results.append({"path": item["path"], **result})
 
-    return {"results": results}
+    return {"results": failed + upload_results}
 
 
 @router.get("/slideshow")
