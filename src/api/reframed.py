@@ -151,30 +151,29 @@ async def upload_reframed_artwork(request: ReframedUploadRequest):
 
     processed_items = await asyncio.gather(*[fetch_and_process(item) for item in request.items])
 
-    results = []
-    for i, result in enumerate(processed_items):
-        if "success" in result and not result["success"]:
-            results.append({"image_id": result["item"].image_id, "success": False, "error": result["error"]})
-            continue
+    failed = [r for r in processed_items if "success" in r and not r["success"]]
+    to_upload = [r for r in processed_items if "processed_data" in r]
 
-        item = result["item"]
-        try:
-            display_this = request.display and i == len(processed_items) - 1
-            upload_result = await asyncio.to_thread(
-                tv_client.upload_artwork,
-                result["processed_data"],
-                display_this,
-            )
+    results = [{"image_id": r["item"].image_id, "success": False, "error": r["error"]} for r in failed]
+
+    if to_upload:
+        last_idx = len(to_upload) - 1
+        batch = [
+            (r["processed_data"], request.display and i == last_idx)
+            for i, r in enumerate(to_upload)
+        ]
+        batch_results = await asyncio.to_thread(tv_client.upload_artwork_batch, batch)
+        for processed, upload_result in zip(to_upload, batch_results):
+            item = processed["item"]
             content_id = upload_result.get("content_id")
-            if content_id:
+            if upload_result.get("success") and content_id:
                 save_name(content_id, item.title)
             results.append({
                 "image_id": item.image_id,
-                "success": True,
+                "success": upload_result.get("success", False),
                 "content_id": content_id,
                 "title": item.title,
+                **({"error": upload_result["error"]} if not upload_result.get("success") else {}),
             })
-        except Exception as e:
-            results.append({"image_id": item.image_id, "success": False, "error": str(e)})
 
     return {"results": results}
