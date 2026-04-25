@@ -4,12 +4,14 @@ import asyncio
 import logging
 from html.parser import HTMLParser
 from typing import Optional
+from urllib.parse import quote
 
 import httpx
 
 _LOGGER = logging.getLogger(__name__)
 
 CDN_BASE = "https://imagedelivery.net/ypD62Q2Ttpsm-db9mriXAg"
+R2_BASE = "https://pub-673dde4b801742e293be307ab76eb45d.r2.dev"
 SITE_BASE = "https://www.reframed.gallery"
 
 _HEADERS = {
@@ -201,6 +203,15 @@ def _parse_max_page(html: str, path_prefix: str) -> int:
     return parser.max_page
 
 
+def _extract_r2_url(html: str) -> Optional[str]:
+    """Find the public R2 full-resolution download URL embedded in an artwork page."""
+    m = re.search(r'r2\.dev/(originals/[^"\\]+)', html)
+    if m:
+        key = m.group(1).strip()
+        return f"{R2_BASE}/{quote(key, safe='/')}"
+    return None
+
+
 class ReframedClient:
     """Scraper client for reframed.gallery."""
 
@@ -341,15 +352,29 @@ class ReframedClient:
             "has_more": end < total,
         }
 
-    async def fetch_image(self, image_id: str) -> bytes:
+    async def fetch_image(self, image_id: str, slug: str = "") -> bytes:
         """Download the full-resolution image for TV upload.
 
-        Tries /public then /download (both are gated by Referer on Cloudflare).
-        Raises if neither succeeds.
+        Fetches the artwork page to extract the public R2 URL (original file).
+        Falls back to CDN /public and /download variants if no R2 URL is found.
         """
         image_headers = {**_HEADERS, "Accept": "image/*"}
-        last_error: Optional[Exception] = None
 
+        if slug:
+            try:
+                html = await self._fetch_html(f"{SITE_BASE}/{slug}")
+                r2_url = _extract_r2_url(html)
+                if r2_url:
+                    async with httpx.AsyncClient(follow_redirects=True) as client:
+                        resp = await client.get(r2_url, headers=image_headers, timeout=60)
+                        if resp.status_code == 200:
+                            _LOGGER.info(f"Downloaded full-res from R2: {slug}")
+                            return resp.content
+                        _LOGGER.debug(f"R2 returned {resp.status_code} for {slug}")
+            except Exception as e:
+                _LOGGER.debug(f"R2 fetch failed for {slug}: {e}")
+
+        last_error: Optional[Exception] = None
         async with httpx.AsyncClient(follow_redirects=True) as client:
             for variant in ("public", "download"):
                 url = f"{CDN_BASE}/{image_id}/{variant}"

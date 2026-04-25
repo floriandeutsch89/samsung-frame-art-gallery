@@ -65,7 +65,7 @@
       <template #left>
         <CropSettings
           :has-selection="selectedIds.size > 0"
-          :allow-reframe="false"
+          :allow-reframe="true"
           @change="setSettings"
           @preview="loadPreviews"
         />
@@ -161,7 +161,8 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const uploading = ref(false)
 const cropPercent = ref(0)
-const mattePercent = ref(10)
+const mattePercent = ref(0)
+const reframeEnabled = ref(true)
 const showPreview = ref(false)
 const previewLoading = ref(false)
 const previews = ref([])
@@ -348,12 +349,13 @@ const selectAll = (checked) => {
 const setSettings = (settings) => {
   cropPercent.value = settings.crop
   mattePercent.value = settings.matte
+  reframeEnabled.value = settings.reframe ?? true
 }
 
 const buildRequestItems = () =>
   Array.from(selectedIds.value).map(image_id => {
     const item = artwork.value.find(a => a.object_id === image_id)
-    return { image_id, title: item?.title || 'Untitled' }
+    return { image_id, title: item?.title || 'Untitled', slug: item?.slug || '' }
   })
 
 const loadPreviews = async () => {
@@ -369,6 +371,7 @@ const loadPreviews = async () => {
         items: buildRequestItems(),
         crop_percent: cropPercent.value,
         matte_percent: mattePercent.value,
+        reframe_enabled: reframeEnabled.value,
       }),
     })
     previews.value = (await res.json()).previews || []
@@ -399,14 +402,24 @@ const doUpload = async (display) => {
         items: buildRequestItems(),
         crop_percent: cropPercent.value,
         matte_percent: mattePercent.value,
+        reframe_enabled: reframeEnabled.value,
         display,
       }),
     })
-    console.log('Reframed upload results:', await res.json())
-    selectedIds.value = new Set()
-    emit('uploaded')
+    const data = await res.json()
+    const failed = (data.results || []).filter(r => !r.success)
+    const succeeded = (data.results || []).filter(r => r.success)
+    if (succeeded.length > 0) {
+      selectedIds.value = new Set()
+      emit('uploaded')
+    }
+    if (failed.length > 0) {
+      const msg = failed.map(r => `${r.image_id}: ${r.error}`).join('\n')
+      alert(`${failed.length} image(s) failed to upload:\n${msg}`)
+    }
   } catch (e) {
     console.error('Upload failed:', e)
+    alert(`Upload failed: ${e.message}`)
   } finally {
     uploading.value = false
   }

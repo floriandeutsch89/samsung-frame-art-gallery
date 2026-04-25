@@ -81,18 +81,21 @@ async def get_artist(slug: str, page: int = 1, page_size: int = 48):
 class ReframedItem(BaseModel):
     image_id: str
     title: str = "Untitled"
+    slug: str = ""
 
 
 class ReframedPreviewRequest(BaseModel):
     items: list[ReframedItem]
     crop_percent: int = 0
-    matte_percent: int = 10
+    matte_percent: int = 0
+    reframe_enabled: bool = True
 
 
 class ReframedUploadRequest(BaseModel):
     items: list[ReframedItem]
     crop_percent: int = 0
-    matte_percent: int = 10
+    matte_percent: int = 0
+    reframe_enabled: bool = True
     display: bool = False
 
 
@@ -108,9 +111,10 @@ async def preview_reframed_artwork(request: ReframedPreviewRequest):
             if cached:
                 original, processed = cached
             else:
-                image_data = await client.fetch_image(item.image_id)
+                image_data = await client.fetch_image(item.image_id, item.slug)
                 original, processed = await asyncio.to_thread(
-                    generate_preview, image_data, request.crop_percent, request.matte_percent
+                    generate_preview, image_data, request.crop_percent, request.matte_percent,
+                    request.reframe_enabled,
                 )
                 cache.set(cache_key, request.crop_percent, request.matte_percent, original, processed)
 
@@ -135,9 +139,10 @@ async def upload_reframed_artwork(request: ReframedUploadRequest):
 
     async def fetch_and_process(item: ReframedItem):
         try:
-            image_data = await client.fetch_image(item.image_id)
+            image_data = await client.fetch_image(item.image_id, item.slug)
             processed_data = await asyncio.to_thread(
-                process_for_tv, image_data, request.crop_percent, request.matte_percent
+                process_for_tv, image_data, request.crop_percent, request.matte_percent,
+                request.reframe_enabled,
             )
             return {"item": item, "processed_data": processed_data}
         except Exception as e:
